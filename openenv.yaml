@@ -1,0 +1,3 @@
+name: "hospital-resource-env"
+version: "1.0.0"
+description: "Environment for hospital resource management under emergency conditions."
