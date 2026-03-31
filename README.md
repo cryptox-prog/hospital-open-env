@@ -1,7 +1,7 @@
-# Hospital Emergency Enviroment
-A hospital enviroment overburdened with patents, the agent must allocate the different resources 
-- Differnt types of doctors
-- Different types of scannners
+# Hospital Emergency Environment
+A hospital environment overburdened with patients, the agent must allocate the different resources 
+- Different types of doctors
+- Different types of scanners
 - Beds
 - Operating rooms
 - Nurses
@@ -10,10 +10,10 @@ To different patients ensuring the optimal condition for most patients during a 
 
 ## Table of Contents
 1. [Why Hospital Resources?](#why-hospital-resources)
-2. [Enviroment Overview](#enviroment-overview)
+2. [Environment Overview](#environment-overview)
 
 ## Why Hospital Resources
-At times of great emergency like natural disasters, stampedes, pandemics, hospitals often are overcome with patients at such times it becomes necessary that they attempt to get the best outcome for the most possible patients. This will help explore how such a task can be done.
+At times of great emergency like natural disasters, stampedes, and pandemics, hospitals often are overcome with patients. At such times, it becomes necessary for them to get the best outcome for the most patients. This will help explore how such a task can be done.
 
-## Enviroment Overview
+## Environment 
 smth smth
