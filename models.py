@@ -3,13 +3,6 @@ from typing import Dict, List, Optional
 
 from openenv.core.env_server import Action, Observation, State
 
-class Severity(StrEnum):
-    LOW = auto()
-    MEDIUM = auto()  # ie, the value of auto() will be "medium"
-    HIGH = auto()
-    CRITICAL = auto()
-
-
 # --------------------------------------------------------------------------------
 # The Resource Types
 # --------------------------------------------------------------------------------
@@ -36,6 +29,54 @@ class NurseType(StrEnum):
     OR = auto()
 
 
+class Severity(StrEnum):
+    LOW = auto()
+    MEDIUM = auto()  # ie, the value of auto() will be "medium"
+    HIGH = auto()
+    CRITICAL = auto()
+
+    @property
+    def required_doctor(self) -> DoctorType:
+        return {
+            Severity.LOW: DoctorType.ER,
+            Severity.MEDIUM: DoctorType.ER,
+            Severity.HIGH: DoctorType.SURGEON,
+            Severity.CRITICAL: DoctorType.SURGEON,
+        }[self]
+
+    @property
+    def required_nurse(self) -> NurseType:
+        return {
+            Severity.LOW: NurseType.GENERAL,
+            Severity.MEDIUM: NurseType.GENERAL,
+            Severity.HIGH: NurseType.ER,
+            Severity.CRITICAL: NurseType.OR,
+        }[self]
+
+    @property
+    def required_bed(self) -> BedType:
+        return BedType.ER if self in (Severity.HIGH, Severity.CRITICAL) else BedType.GENERAL
+
+    @property
+    def required_nurses_count(self) -> int:
+        return 2 if self in (Severity.HIGH, Severity.CRITICAL) else 1
+
+    @property
+    def max_wait_hours(self) -> float:
+        return {Severity.LOW: 8.0, Severity.MEDIUM: 6.0, Severity.HIGH: 4.0, Severity.CRITICAL: 2.0}[self]
+
+    @property
+    def initial_condition_score(self) -> float:
+        return {Severity.LOW: 1.0, Severity.MEDIUM: 2.0, Severity.HIGH: 4.0, Severity.CRITICAL: 6.0}[self]
+
+    @property
+    def wait_deterioration(self) -> float:
+        return {Severity.LOW: 0.25, Severity.MEDIUM: 0.5, Severity.HIGH: 0.9, Severity.CRITICAL: 1.4}[self]
+
+    @property
+    def recovery_rate(self) -> float:
+        return {Severity.LOW: 1.2, Severity.MEDIUM: 1.0, Severity.HIGH: 0.8, Severity.CRITICAL: 0.6}[self]
+
 # --------------------------------------------------------------------------------
 # The States
 # --------------------------------------------------------------------------------
@@ -47,6 +88,8 @@ class Patient(State):
     max_wait_hours: float = 4.0 # kill the patient with consideration of severity
     waited_hours: float = 0
 
+    treatment_started_hour : Optional[float] = None
+
     required_doctor: DoctorType = DoctorType.ER
     required_nurse_type: NurseType = NurseType.GENERAL
     required_nurses: int = 1
@@ -55,24 +98,33 @@ class Patient(State):
     required_scanner: Optional[ScannerType] = None
     operation_duration_hours: float = 0
 
+    @property
+    def treatment_hours(self) -> int:
+        hours = self.severity.base_treatment_hours # TODO: Add this property to severity
+        if self.required_scanner is not None:
+            hours += 1 # TODO: Fractional Hour Assignments
+        if self.operation_duration_hours > 0:
+            hours += self.operation_duration_hours
+        return max(1, hours)
+
 class DoctorResource(State):
-    doctor_id: str
-    doctor_type: DoctorType
+    resource_id: str
+    resource_type: DoctorType
     busy_until_hour: float = 0
 
 class NurseResource(State):
-    nurse_id: str
-    nurse_type: NurseType
+    resource_id: str
+    resource_type: NurseType
     busy_until_hour: float = 0
 
 class ScannerResource(State):
-    scanner_id: str
-    scanner_type: ScannerType
+    resource_id: str
+    resource_type: ScannerType
     busy_until_hour: float = 0
 
 class BedResource(State):
-    bed_id: str
-    bed_type: BedType
+    resource_id: str
+    resource_type: BedType
     occupied_by_patient_id: Optional[str] = None
 
 class OperatingRoomResource(State):
@@ -86,6 +138,7 @@ class HospitalMetrics(State):
     total_wait_time_hours: float = 0
 
 class HospitalState(State):
+    episode_id: str
     current_hour: float = 0
     horizon_hours: float = 24
 
