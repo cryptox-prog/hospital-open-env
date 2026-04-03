@@ -257,8 +257,13 @@ class HospitalEnviroment(Environment):
             doctor.busy_until_hour = self._state.current_hour + patient.treatment_hours
             for nurse in nurses:
                 nurse.busy_until_hour = self._state.current_hour + patient.treatment_hours
-            bed.occupied_by_patient_id = patient.patient_id
-
+            if patient.severity == Severity.CRITICAL:
+                bed.occupied_by_patient_id = patient.patient_id
+                bed.resource_type = BedType.ER
+            elif patient.severity == Severity.HIGH:
+                bed.occupied_by_patient_id = patient.patient_id
+                bed.resource_type = BedType.GENERAL
+            
             if scanner is not None:
                 scanner.busy_until_hour = self._state.current_hour + 1
             if operating_room is not None:
