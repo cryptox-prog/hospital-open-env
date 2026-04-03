@@ -28,7 +28,32 @@ class NurseType(StrEnum):
     ER = auto()
     OR = auto()
 
-
+class OperationType(StrEnum):
+    APENDECTOMY = auto()
+    C_SECTION = auto()
+    DEBRIDEMENT = auto()
+    LAPAROTOMY = auto()
+    CABG = auto()
+    @property
+    def base_duration_hours(self) -> float:
+        return {
+            OperationType.APENDECTOMY: 1.0,
+            OperationType.C_SECTION: 1.0,
+            OperationType.DEBRIDEMENT: 2.0,
+            OperationType.LAPAROTOMY: 4.0,
+            OperationType.CABG: 5.0,
+        }[self]
+        
+    @property
+    def likelihood(self) -> float:
+        return {
+            OperationType.APENDECTOMY: 8.0,
+            OperationType.C_SECTION: 30.0,
+            OperationType.DEBRIDEMENT: 6.5,
+            OperationType.LAPAROTOMY: 1.5,
+            OperationType.CABG: 1.5,
+        }[self]
+    
 class Severity(StrEnum):
     LOW = auto()
     MEDIUM = auto()  # ie, the value of auto() will be "medium"
