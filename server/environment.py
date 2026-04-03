@@ -5,7 +5,7 @@ import uuid
 from typing import List, Dict, Optional
 
 from models import (HospitalState, HospitalObservation, DoctorResource,
-                     DoctorType, NurseResource, NurseType, ScannerResource, ScannerType,
+                     DoctorType, NurseResource, NurseType, OperationType, ScannerResource, ScannerType,
                      BedResource, BedType, OperatingRoomResource, Severity, Patient,
                      HospitalAction, HospitalMetrics)
 
@@ -112,9 +112,31 @@ class HospitalEnviroment(Environment):
             required_scanner = self._rng.choice([None, ScannerType.XRAY, ScannerType.CT, ScannerType.MRI])
 
             # critical patients have 60% chance of needing operation
-            requires_operation = ((severity == Severity.CRITICAL) and (self._rng.random() < 0.6)) 
-            operation_duration_hours = 4 if requires_operation else 0 # TODO: Dynamic operation hours ???
+            operation_type = None
+            operation_duration_hours = 0
 
+            if severity in (Severity.HIGH, Severity.CRITICAL):
+
+                # choose operation based on likelihood weights
+                operation_choices = list(OperationType)
+                weights = [op.likelihood for op in operation_choices]
+
+                operation_type = self._rng.choices(operation_choices, weights=weights, k=1)[0]
+
+                operation_duration_hours = operation_type.base_duration_hours
+                
+                required_blood_units = 0
+                required_oxygen = False
+                required_ventilator = False
+
+                if severity == Severity.HIGH:
+                    required_oxygen = True
+                    required_blood_units = self._rng.choice([0,1])
+
+                if severity == Severity.CRITICAL:
+                    required_oxygen = True
+                    required_blood_units = self._rng.randint(1,3)
+                    
             patient = Patient(
                 patient_id = f"patient-{i + 1}",
                 arrival_hour = arrival_hour,
@@ -122,12 +144,15 @@ class HospitalEnviroment(Environment):
                 condition_score = severity.initial_condition_score,
                 max_wait_hours = severity.max_wait_hours,
                 waited_hours = 0,
-                required_doctor = severity.required_doctor,
+                required_doctor = operation_type.required_surgeon if operation_type else severity.required_doctor,
                 required_nurse_type = severity.required_nurse,
                 required_nurses = severity.required_nurses_count,
                 required_bed_type = severity.required_bed,
                 required_scanner = required_scanner,
+                operation_type = operation_type,
                 operation_duration_hours = operation_duration_hours,
+                required_blood_units = required_blood_units,
+                required_oxygen = required_oxygen,
             )
             schedule[arrival_hour].append(patient)
 

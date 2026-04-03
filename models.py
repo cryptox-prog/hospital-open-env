@@ -8,8 +8,23 @@ from openenv.core.env_server import Action, Observation, State
 # --------------------------------------------------------------------------------
 class DoctorType(StrEnum):
     ER = auto()
-    SURGEON = auto()
     RADIOLOGIST = auto()
+
+    # Surgeon specializations
+    GENERAL_SURGEON = auto()
+    CARDIOTHORACIC_SURGEON = auto()
+    OBSTETRIC_SURGEON = auto()
+    ORTHOPEDIC_SURGEON = auto()
+    
+    @property
+    def required_surgeon(self) -> DoctorType:
+        return {
+            OperationType.APENDECTOMY: DoctorType.GENERAL_SURGEON,
+            OperationType.C_SECTION: DoctorType.OBSTETRIC_SURGEON,
+            OperationType.DEBRIDEMENT: DoctorType.GENERAL_SURGEON,
+            OperationType.LAPAROTOMY: DoctorType.GENERAL_SURGEON,
+            OperationType.CABG: DoctorType.CARDIOTHORACIC_SURGEON,
+        }[self]
 
 
 class ScannerType(StrEnum):
@@ -22,6 +37,14 @@ class BedType(StrEnum):
     GENERAL = auto()
     ER = auto()
 
+class BloodType(StrEnum):
+    O_POS = auto()
+    O_NEG = auto()
+    A_POS = auto()
+    B_POS = auto()
+
+class OxygenType(StrEnum):
+    CYLINDER = auto()
 
 class NurseType(StrEnum):
     GENERAL = auto()
@@ -112,15 +135,17 @@ class Patient(State):
     condition_score: float = 0.0 # higher score means worse condition
     max_wait_hours: float = 4.0 # kill the patient with consideration of severity
     waited_hours: float = 0
-
+    
     treatment_started_hour : Optional[float] = None
 
     required_doctor: DoctorType = DoctorType.ER
     required_nurse_type: NurseType = NurseType.GENERAL
     required_nurses: int = 1
     required_bed_type: BedType = BedType.GENERAL
-
+    required_blood_units: int = 0
+    required_oxygen: bool = False
     required_scanner: Optional[ScannerType] = None
+    operation_type: Optional[OperationType] = None
     operation_duration_hours: float = 0
 
     @property
@@ -152,6 +177,17 @@ class BedResource(State):
     resource_type: BedType
     occupied_by_patient_id: Optional[str] = None
 
+class BloodResource(State):
+    resource_id: str
+    resource_type: BloodType
+    units_available: int = 0
+
+
+class OxygenResource(State):
+    resource_id: str
+    resource_type: OxygenType
+    busy_until_hour: float = 0
+
 class OperatingRoomResource(State):
     room_id: str
     busy_until_hour: float = 0
@@ -177,7 +213,8 @@ class HospitalState(State):
     scanners: List[ScannerResource] = []
     beds: List[BedResource] = []
     operating_rooms: List[OperatingRoomResource] = []
-
+    blood_bank: List[BloodResource] = []
+    oxygen_supply: List[OxygenResource] = []
     metrics: HospitalMetrics = HospitalMetrics()
 
 
