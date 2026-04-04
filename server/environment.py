@@ -302,7 +302,7 @@ class HospitalEnviroment(Environment):
                 bed.occupied_by_patient_id = None
 
     def _patient_died(self, patient: Patient) -> bool:
-        wait_limit = self._max_wait_for_severity(patient.severity)
+        wait_limit = patient.severity.max_wait_hours
         critical_limit = 8.0
         return patient.waited_hours > wait_limit or patient.condition_score >= critical_limit
 
