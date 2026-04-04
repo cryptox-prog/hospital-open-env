@@ -52,7 +52,7 @@ class NurseType(StrEnum):
     OR = auto()
 
 class OperationType(StrEnum):
-    APENDECTOMY = auto()
+    APPENDECTOMY = auto()
     C_SECTION = auto()
     DEBRIDEMENT = auto()
     LAPAROTOMY = auto()
@@ -61,7 +61,7 @@ class OperationType(StrEnum):
     @property
     def base_duration_hours(self) -> int:
         return {
-            OperationType.APENDECTOMY: quanta_from_hours(1),
+            OperationType.APPENDECTOMY: quanta_from_hours(1),
             OperationType.C_SECTION: quanta_from_hours(1),
             OperationType.DEBRIDEMENT: quanta_from_hours(2),
             OperationType.LAPAROTOMY: quanta_from_hours(4),
@@ -71,7 +71,7 @@ class OperationType(StrEnum):
     @property
     def likelihood(self) -> float:
         return {
-            OperationType.APENDECTOMY: 8.0,
+            OperationType.APPENDECTOMY: 8.0,
             OperationType.C_SECTION: 30.0,
             OperationType.DEBRIDEMENT: 6.5,
             OperationType.LAPAROTOMY: 1.5,
@@ -81,7 +81,7 @@ class OperationType(StrEnum):
     @property
     def required_surgeon(self) -> DoctorType:
         return {
-            OperationType.APENDECTOMY: DoctorType.GENERAL_SURGEON,
+            OperationType.APPENDECTOMY: DoctorType.GENERAL_SURGEON,
             OperationType.C_SECTION: DoctorType.OBSTETRIC_SURGEON,
             OperationType.DEBRIDEMENT: DoctorType.GENERAL_SURGEON,
             OperationType.LAPAROTOMY: DoctorType.GENERAL_SURGEON,
