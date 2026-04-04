@@ -202,9 +202,9 @@ class Patient(State):
 
     @property
     def treatment_quanta(self) -> int:
-        quanta = self.severity.base_treatment_quanta # TODO: Add this property to severity
+        quanta = self.severity.base_treatment_quanta
         if self.required_scanner is not None:
-            quanta += 1 # TODO: Fractional Quantum Assignments
+            quanta += 1
         if self.operation_duration_quanta > 0:
             quanta += self.operation_duration_quanta
         return max(1, quanta)
