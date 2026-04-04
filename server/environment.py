@@ -7,7 +7,6 @@ from typing import List, Dict, Optional
 from models import (HospitalState, HospitalObservation, DoctorResource,
                      DoctorType, NurseResource, NurseType, OperationType, ScannerResource, ScannerType,
                      BedResource, BedType, OperatingRoomResource, Severity, Patient,
-                     TIME_QUANTA_PER_HOUR,
                      HospitalAction, HospitalMetrics)
 
 class HospitalEnvironment(Environment):
@@ -26,14 +25,8 @@ class HospitalEnvironment(Environment):
         if seed is not None:
             self._rng.seed(seed)
 
-        step_quanta_per_step = config.get("step_quanta_per_step", 2)
-        if step_quanta_per_step < 1:
-            raise ValueError("step_quanta_per_step must be at least 1")
-
         self._state = HospitalState(
             episode_id = episode_id or str(uuid.uuid4()),
-
-            step_quanta_per_step = step_quanta_per_step,
 
             doctors = self._build_resources(config["doctors"], DoctorResource, DoctorType, "doc"),
             nurses = self._build_resources(config["nurses"], NurseResource, NurseType, "nurse"),
@@ -220,6 +213,12 @@ class HospitalEnvironment(Environment):
             result[severity.value] = count
         return result
 
+    def _hourly_rate_per_quantum(self, hourly_rate: float) -> float:
+        return hourly_rate / self._state.time_quanta_per_hour
+
+    def _wait_penalty_to_reward(self, wait_penalty_quanta: int) -> float:
+        return 0.1 * (wait_penalty_quanta / self._state.time_quanta_per_hour)
+
     def _observation(self, done: bool = False, reward: Optional[float] = None, message: str = "") -> HospitalObservation:
         free_resources = {
             "doctors": self._count_free_resources(self._state.doctors, DoctorType),
@@ -346,7 +345,7 @@ class HospitalEnvironment(Environment):
         surviving_waiting: List[Patient] = []
         for patient in self._state.waiting_patients:
             patient.waited_quanta += 1
-            patient.condition_score += patient.severity.wait_deterioration / TIME_QUANTA_PER_HOUR
+            patient.condition_score += self._hourly_rate_per_quantum(patient.severity.wait_deterioration)
             self._update_severity(patient)
             self._state.metrics.total_wait_time_quanta += 1
 
@@ -362,7 +361,7 @@ class HospitalEnvironment(Environment):
 
         for patient in self._state.active_patients:
             quanta_elapsed = self._state.current_quantum - patient.treatment_started_quantum
-            patient.condition_score = max(0.0, patient.condition_score - (patient.severity.recovery_rate / TIME_QUANTA_PER_HOUR))
+            patient.condition_score = max(0.0, patient.condition_score - self._hourly_rate_per_quantum(patient.severity.recovery_rate))
 
             if quanta_elapsed >= patient.treatment_quanta:
                 patient.is_stable = True
@@ -450,7 +449,7 @@ class HospitalEnvironment(Environment):
             all_patients_arrived
         )
 
-        reward = discharges_this_step * 1.0 - deaths_this_step * 2.0 - 0.1 * (wait_penalty / TIME_QUANTA_PER_HOUR)
+        reward = discharges_this_step * 1.0 - deaths_this_step * 2.0 - self._wait_penalty_to_reward(wait_penalty)
         self._state.metrics.objective_score += reward
 
         return self._observation(done=done, reward=reward, message=self._status_message(discharges_this_step, deaths_this_step, done))
