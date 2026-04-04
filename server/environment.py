@@ -7,7 +7,7 @@ from typing import List, Dict, Optional
 from models import (HospitalState, HospitalObservation, DoctorResource,
                      DoctorType, NurseResource, NurseType, OperationType, ScannerResource, ScannerType,
                      BedResource, BedType, OperatingRoomResource, Severity, Patient,
-                     HospitalAction, HospitalMetrics)
+                     HospitalAction, HospitalMetrics, CRITICAL_LIMIT)
 
 class HospitalEnvironment(Environment):
     SUPPORTS_CONCURRENT_SESSIONS = True
@@ -335,7 +335,7 @@ class HospitalEnvironment(Environment):
     @staticmethod
     def _patient_died(patient: Patient) -> bool:
         wait_limit = patient.severity.max_wait_quanta
-        critical_limit = 8.0
+        critical_limit = CRITICAL_LIMIT
         if patient.severity == Severity.CRITICAL:
             return patient.waited_quanta > wait_limit or patient.condition_score >= critical_limit
         return False
