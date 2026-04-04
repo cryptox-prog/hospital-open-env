@@ -59,7 +59,7 @@ class OperationType(StrEnum):
     CABG = auto()
     
     @property
-    def base_duration_hours(self) -> int:
+    def base_duration_quanta(self) -> int:
         return {
             OperationType.APPENDECTOMY: quanta_from_hours(1),
             OperationType.C_SECTION: quanta_from_hours(1),
@@ -121,7 +121,7 @@ class Severity(StrEnum):
         return 2 if self in (Severity.HIGH, Severity.CRITICAL) else 1
 
     @property
-    def max_wait_hours(self) -> int:
+    def max_wait_quanta(self) -> int:
         return {
             Severity.LOW: quanta_from_hours(4),
             Severity.MEDIUM: quanta_from_hours(3),
@@ -169,7 +169,7 @@ class Severity(StrEnum):
         }[self]
 
     @property
-    def base_treatment_hours(self) -> int:
+    def base_treatment_quanta(self) -> int:
         return {
             Severity.LOW: quanta_from_minutes(15),
             Severity.MEDIUM: quanta_from_hours(1),
@@ -182,13 +182,13 @@ class Severity(StrEnum):
 # --------------------------------------------------------------------------------
 class Patient(State):
     patient_id: str
-    arrival_hour: int
+    arrival_quantum: int
     severity: Severity
-    max_wait_hours: int = 0
+    max_wait_quanta: int = 0
     condition_score: float = 0.0 # higher score means worse condition
-    waited_hours: int = 0
+    waited_quanta: int = 0
     
-    treatment_started_hour : Optional[int] = None
+    treatment_started_quantum : Optional[int] = None
 
     required_doctor: DoctorType = DoctorType.ER
     required_nurse_type: NurseType = NurseType.GENERAL
@@ -198,31 +198,31 @@ class Patient(State):
     required_oxygen: bool = False
     required_scanner: Optional[ScannerType] = None
     operation_type: Optional[OperationType] = None
-    operation_duration_hours: int = 0
+    operation_duration_quanta: int = 0
 
     @property
-    def treatment_hours(self) -> int:
-        hours = self.severity.base_treatment_hours # TODO: Add this property to severity
+    def treatment_quanta(self) -> int:
+        quanta = self.severity.base_treatment_quanta # TODO: Add this property to severity
         if self.required_scanner is not None:
-            hours += 1 # TODO: Fractional Hour Assignments
-        if self.operation_duration_hours > 0:
-            hours += self.operation_duration_hours
-        return max(1, hours)
+            quanta += 1 # TODO: Fractional Quantum Assignments
+        if self.operation_duration_quanta > 0:
+            quanta += self.operation_duration_quanta
+        return max(1, quanta)
 
 class DoctorResource(State):
     resource_id: str
     resource_type: DoctorType
-    busy_until_hour: int = 0
+    busy_until_quantum: int = 0
 
 class NurseResource(State):
     resource_id: str
     resource_type: NurseType
-    busy_until_hour: int = 0
+    busy_until_quantum: int = 0
 
 class ScannerResource(State):
     resource_id: str
     resource_type: ScannerType
-    busy_until_hour: int = 0
+    busy_until_quantum: int = 0
 
 class BedResource(State):
     resource_id: str
@@ -237,24 +237,25 @@ class BloodResource(State):
 
 class OxygenResource(State):
     resource_id: str
-    busy_until_hour: int = 0
+    busy_until_quantum: int = 0
 
 class OperatingRoomResource(State):
     room_id: str
-    busy_until_hour: int = 0
+    busy_until_quantum: int = 0
 
 class HospitalMetrics(State):
     treated_patients: int = 0
     discharged_patients: int = 0
     deceased_patients: int = 0
-    total_wait_time_hours: int = 0
+    total_wait_time_quanta: int = 0
 
 class HospitalState(State):
     episode_id: str
-    current_hour: int = 0
-    horizon_hours: int = quanta_from_hours(24)
+    current_quantum: int = 0
+    horizon_quanta: int = quanta_from_hours(24)
     time_quantum_minutes: int = TIME_QUANTUM_MINUTES
     time_quanta_per_hour: int = TIME_QUANTA_PER_HOUR
+    step_quanta_per_step: int = 2
 
     waiting_patients: List[Patient] = []
     active_patients: List[Patient] = []
@@ -287,7 +288,7 @@ class HospitalAction(Action):
 
 
 class HospitalObservation(Observation):
-    hour: int
+    current_quantum: int
     waiting_patients: int
     critical_waiting_patients: int
     resources_free: Dict[str, int]

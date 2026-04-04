@@ -26,8 +26,14 @@ class HospitalEnvironment(Environment):
         if seed is not None:
             self._rng.seed(seed)
 
+        step_quanta_per_step = config.get("step_quanta_per_step", 2)
+        if step_quanta_per_step < 1:
+            raise ValueError("step_quanta_per_step must be at least 1")
+
         self._state = HospitalState(
             episode_id = episode_id or str(uuid.uuid4()),
+
+            step_quanta_per_step = step_quanta_per_step,
 
             doctors = self._build_resources(config["doctors"], DoctorResource, DoctorType, "doc"),
             nurses = self._build_resources(config["nurses"], NurseResource, NurseType, "nurse"),
@@ -38,7 +44,7 @@ class HospitalEnvironment(Environment):
 
         self._scheduled_arrivals = self._build_patients_schedule(config["patients"])
         self._next_patient_index = 0
-        self._move_to_waiting(hour = 0)
+        self._move_to_waiting(quantum = 0)
         self._state.metrics = HospitalMetrics()
         return self._observation(message="Started Hospital Shift")
         
@@ -63,7 +69,7 @@ class HospitalEnvironment(Environment):
         return operating_rooms
     
     def _build_patients_schedule(self, config: dict) -> Dict[int, List[Patient]]:
-        schedule: Dict[int, List[Patient]] = {slot: [] for slot in range(self._state.horizon_hours)}
+        schedule: Dict[int, List[Patient]] = {quantum: [] for quantum in range(0, self._state.horizon_quanta, self._state.step_quanta_per_step)}
         
         count = config["count"]
         spread = config["arrival_spread"]
@@ -72,59 +78,63 @@ class HospitalEnvironment(Environment):
         severities = [Severity(k.upper()) for k in weights_raw.keys()]
         severity_weights = list(weights_raw.values())
 
+        arrival_quanta = list(range(0, self._state.horizon_quanta, self._state.step_quanta_per_step))
+        if not arrival_quanta:
+            raise ValueError("step_quanta_per_step is too large for the configured horizon")
+
         for i in range(count):
-            # pick arrival time slot based on spread
+            # pick arrival quantum based on spread
             if spread == "uniform":
-                # pick a random 15-minute slot across the day
-                arrival_hour = self._rng.randint(0, self._state.horizon_hours - 1)
+                # pick a random step-aligned quantum across the day
+                arrival_quantum = self._rng.choice(arrival_quanta)
             elif spread == "peak_hours":
                 # assign a weight of 3 to all peak hours and 1 elsewhere
-                arrival_hour = self._rng.choices(
-                    range(self._state.horizon_hours),
+                arrival_quantum = self._rng.choices(
+                    arrival_quanta,
                     weights = [
-                        3 if (slot // self._state.time_quanta_per_hour) in (8, 9, 10, 17, 18, 19) else 1
-                        for slot in range(self._state.horizon_hours)
+                        3 if (quantum // self._state.time_quanta_per_hour) in (8, 9, 10, 17, 18, 19) else 1
+                        for quantum in arrival_quanta
                     ],
                     k = 1
                 )[0]
             elif spread == "front_loaded":
                 # weight for hour 0 is 24 and decreases through the day
-                arrival_hour = self._rng.choices(
-                    range(self._state.horizon_hours),
+                arrival_quantum = self._rng.choices(
+                    arrival_quanta,
                     weights = [
-                        (24 - (slot // self._state.time_quanta_per_hour))
-                        for slot in range(self._state.horizon_hours)
+                        (24 - (quantum // self._state.time_quanta_per_hour))
+                        for quantum in arrival_quanta
                     ],
                     k = 1
                 )[0]
             elif spread == "back_loaded":
                 # reverse of front_loaded
-                arrival_hour = self._rng.choices(
-                    range(self._state.horizon_hours),
+                arrival_quantum = self._rng.choices(
+                    arrival_quanta,
                     weights = [
-                        ((slot // self._state.time_quanta_per_hour) + 1)
-                        for slot in range(self._state.horizon_hours)
+                        ((quantum // self._state.time_quanta_per_hour) + 1)
+                        for quantum in arrival_quanta
                     ],
                     k = 1
                 )[0]
             elif spread == "custom":
-                # supports either 24 hourly weights or per-slot weights
+                # supports either 24 hourly weights or step-aligned quantum weights
                 arrival_weights = config["arrival_weights"]
                 if len(arrival_weights) == 24:
-                    slot_weights = [arrival_weights[slot // self._state.time_quanta_per_hour] for slot in range(self._state.horizon_hours)]
-                elif len(arrival_weights) == self._state.horizon_hours:
-                    slot_weights = arrival_weights
+                    quantum_weights = [arrival_weights[quantum // self._state.time_quanta_per_hour] for quantum in arrival_quanta]
+                elif len(arrival_weights) == len(arrival_quanta):
+                    quantum_weights = arrival_weights
                 else:
-                    raise ValueError("arrival_weights must have length 24 or horizon_hours")
+                    raise ValueError("arrival_weights must have length 24 or the number of step-aligned arrival quanta")
 
-                arrival_hour = self._rng.choices(
-                    range(self._state.horizon_hours),
-                    weights = slot_weights,
+                arrival_quantum = self._rng.choices(
+                    arrival_quanta,
+                    weights = quantum_weights,
                     k = 1
                 )[0]
             else:
-                # default to uniform
-                arrival_hour = self._rng.randint(0, self._state.horizon_hours - 1)
+                # default to uniform over step-aligned quanta
+                arrival_quantum = self._rng.choice(arrival_quanta)
 
             severity = self._rng.choices(severities, weights = severity_weights, k = 1)[0]
             # k = 1 => pick 1 element (returns single element list) thus pick the first element from that list
@@ -132,7 +142,7 @@ class HospitalEnvironment(Environment):
             required_scanner = self._rng.choice([None, ScannerType.XRAY, ScannerType.CT, ScannerType.MRI])
             
             operation_type = None
-            operation_duration_hours = 0
+            operation_duration_quanta = 0
             required_blood_units = 0
             required_oxygen = False
 
@@ -140,7 +150,7 @@ class HospitalEnvironment(Environment):
                 operation_choices = list(OperationType)
                 weights = [op.likelihood for op in operation_choices]
                 operation_type = self._rng.choices(operation_choices, weights=weights, k=1)[0]
-                operation_duration_hours = operation_type.base_duration_hours
+                operation_duration_quanta = operation_type.base_duration_quanta
 
             if self._rng.random() < severity.oxygen_probability:
                 required_oxygen = True
@@ -155,40 +165,40 @@ class HospitalEnvironment(Environment):
                     
             patient = Patient(
                 patient_id = f"patient-{i + 1}",
-                arrival_hour = arrival_hour,
+                arrival_quantum = arrival_quantum,
                 severity = severity,
                 condition_score = severity.initial_condition_score,
-                max_wait_hours = severity.max_wait_hours,
-                waited_hours = 0,
+                max_wait_quanta = severity.max_wait_quanta,
+                waited_quanta = 0,
                 required_doctor = operation_type.required_surgeon if operation_type else severity.required_doctor,
                 required_nurse_type = severity.required_nurse,
                 required_nurses = severity.required_nurses_count,
                 required_bed_type = severity.required_bed,
                 required_scanner = required_scanner,
                 operation_type = operation_type,
-                operation_duration_hours = operation_duration_hours,
+                operation_duration_quanta = operation_duration_quanta,
                 required_blood_units = required_blood_units,
                 required_oxygen = required_oxygen,
             )
-            schedule[arrival_hour].append(patient)
+            schedule[arrival_quantum].append(patient)
 
         return schedule
 
-    def _move_to_waiting(self, hour: int) -> None:
-        new_patients = self._scheduled_arrivals.get(hour, [])
+    def _move_to_waiting(self, quantum: int) -> None:
+        new_patients = self._scheduled_arrivals.get(quantum, [])
         if new_patients:
             self._state.waiting_patients.extend(new_patients)
             self._next_patient_index += len(new_patients)
 
-    def _resource_free(self, busy_until_hour: int) -> bool:
-        return busy_until_hour <= self._state.current_hour
+    def _resource_free(self, busy_until_quantum: int) -> bool:
+        return busy_until_quantum <= self._state.current_quantum
 
     def _count_free_resources(self, resources: list, type_enum) -> dict:
         result = {}
         for resource_type in type_enum:
             count = 0
             for r in resources:
-                if r.resource_type == resource_type and self._resource_free(r.busy_until_hour):
+                if r.resource_type == resource_type and self._resource_free(r.busy_until_quantum):
                     count += 1
             result[resource_type.value] = count
         return result
@@ -196,7 +206,7 @@ class HospitalEnvironment(Environment):
     def _count_free_operating_rooms(self) -> int:
         count = 0
         for room in self._state.operating_rooms:
-            if self._resource_free(room.busy_until_hour):
+            if self._resource_free(room.busy_until_quantum):
                 count += 1
         return count
 
@@ -224,7 +234,7 @@ class HospitalEnvironment(Environment):
         return HospitalObservation(
             done = done,
             reward = reward,
-            hour = self._state.current_hour,
+            current_quantum = self._state.current_quantum,
             waiting_patients = len(self._state.waiting_patients),
             critical_waiting_patients = queue_by_severity[Severity.CRITICAL.value],
             resources_free = free_resources,
@@ -242,7 +252,7 @@ class HospitalEnvironment(Environment):
     def _take_resource(self, resource_ids: List[str | None], resources: List[DoctorResource | ScannerResource], required_type) -> Optional[object]:
         for resource_id in resource_ids:
             resource = next((r for r in resources if r.resource_id == resource_id), None)
-            if resource and resource.resource_type == required_type and self._resource_free(resource.busy_until_hour):
+            if resource and resource.resource_type == required_type and self._resource_free(resource.busy_until_quantum):
                 return resource
         return None
 
@@ -250,7 +260,7 @@ class HospitalEnvironment(Environment):
         taken = []
         for resource_id in resource_ids:
             resource = next((r for r in resources if r.resource_id == resource_id), None)
-            if resource and resource.resource_type == required_type and self._resource_free(resource.busy_until_hour):
+            if resource and resource.resource_type == required_type and self._resource_free(resource.busy_until_quantum):
                 taken.append(resource)
             if len(taken) >= required_count:
                 break
@@ -268,7 +278,7 @@ class HospitalEnvironment(Environment):
         if not room_id:
             return None
         room = next((r for r in self._state.operating_rooms if r.room_id == room_id), None)
-        if room and self._resource_free(room.busy_until_hour):
+        if room and self._resource_free(room.busy_until_quantum):
             return room
         return None
 
@@ -282,23 +292,23 @@ class HospitalEnvironment(Environment):
             nurses = self._take_resources(assignment.nurse_ids, self._state.nurses, patient.required_nurse_type, patient.required_nurses)
             bed = self._take_bed(assignment.bed_id, patient.required_bed_type)
             scanner = self._take_resource([assignment.scanner_id], self._state.scanners, patient.required_scanner) if patient.required_scanner else None
-            operating_room = self._take_operating_room(assignment.operating_room_id) if patient.operation_duration_hours > 0 else None
+            operating_room = self._take_operating_room(assignment.operating_room_id) if patient.operation_duration_quanta > 0 else None
             
             # if resources not in required amount skip assignment
             if doctor is None or len(nurses) < patient.required_nurses or bed is None:
                 continue
             if patient.required_scanner is not None and scanner is None:
                 continue
-            if patient.operation_duration_hours > 0 and operating_room is None:
+            if patient.operation_duration_quanta > 0 and operating_room is None:
                 continue
 
             self._state.waiting_patients.remove(patient)
             self._state.active_patients.append(patient)
 
-            patient.treatment_started_hour = self._state.current_hour
-            doctor.busy_until_hour = self._state.current_hour + patient.treatment_hours
+            patient.treatment_started_quantum = self._state.current_quantum
+            doctor.busy_until_quantum = self._state.current_quantum + patient.treatment_quanta
             for nurse in nurses:
-                nurse.busy_until_hour = self._state.current_hour + patient.treatment_hours
+                nurse.busy_until_quantum = self._state.current_quantum + patient.treatment_quanta
             if patient.severity == Severity.CRITICAL:
                 bed.occupied_by_patient_id = patient.patient_id
                 bed.resource_type = BedType.ER
@@ -307,9 +317,9 @@ class HospitalEnvironment(Environment):
                 bed.resource_type = BedType.GENERAL
             
             if scanner is not None:
-                scanner.busy_until_hour = self._state.current_hour + 1
+                scanner.busy_until_quantum = self._state.current_quantum + 1
             if operating_room is not None:
-                operating_room.busy_until_hour = self._state.current_hour + int(patient.operation_duration_hours)
+                operating_room.busy_until_quantum = self._state.current_quantum + int(patient.operation_duration_quanta)
 
             self._state.metrics.treated_patients += 1
 
@@ -320,25 +330,25 @@ class HospitalEnvironment(Environment):
 
     @staticmethod
     def _patient_died(patient: Patient) -> bool:
-        wait_limit = patient.severity.max_wait_hours
+        wait_limit = patient.severity.max_wait_quanta
         critical_limit = 8.0
         if patient.severity == Severity.CRITICAL:
-            return patient.waited_hours > wait_limit or patient.condition_score >= critical_limit
+            return patient.waited_quanta > wait_limit or patient.condition_score >= critical_limit
         return False
     
     @staticmethod
     def _update_severity(patient: Patient) -> None:
-        if patient.severity == Severity.HIGH and patient.waited_hours >= patient.severity.max_wait_hours:
+        if patient.severity == Severity.HIGH and patient.waited_quanta >= patient.severity.max_wait_quanta:
             patient.severity = Severity.CRITICAL
 
 
     def _advance_waiting_patients(self) -> None:
         surviving_waiting: List[Patient] = []
         for patient in self._state.waiting_patients:
-            patient.waited_hours += 1
+            patient.waited_quanta += 1
             patient.condition_score += patient.severity.wait_deterioration / TIME_QUANTA_PER_HOUR
             self._update_severity(patient)
-            self._state.metrics.total_wait_time_hours += 1
+            self._state.metrics.total_wait_time_quanta += 1
 
             if self._patient_died(patient):
                 self._state.deceased_patients.append(patient)
@@ -351,10 +361,10 @@ class HospitalEnvironment(Environment):
         discharges = 0
 
         for patient in self._state.active_patients:
-            hours_elapsed = self._state.current_hour - patient.treatment_started_hour
+            quanta_elapsed = self._state.current_quantum - patient.treatment_started_quantum
             patient.condition_score = max(0.0, patient.condition_score - (patient.severity.recovery_rate / TIME_QUANTA_PER_HOUR))
 
-            if hours_elapsed >= patient.treatment_hours:
+            if quanta_elapsed >= patient.treatment_quanta:
                 patient.is_stable = True
                 self._state.discharged_patients.append(patient)
                 discharges += 1
@@ -370,19 +380,19 @@ class HospitalEnvironment(Environment):
         self._state.metrics.deceased_patients = len(self._state.deceased_patients)
         return discharges
 
-    def _release_resources(self, current_hour: int) -> None:
+    def _release_resources(self, current_quantum: int) -> None:
         for doctor in self._state.doctors:
-            if doctor.busy_until_hour <= current_hour:
-                doctor.busy_until_hour = 0
+            if doctor.busy_until_quantum <= current_quantum:
+                doctor.busy_until_quantum = 0
         for nurse in self._state.nurses:
-            if nurse.busy_until_hour <= current_hour:
-                nurse.busy_until_hour = 0
+            if nurse.busy_until_quantum <= current_quantum:
+                nurse.busy_until_quantum = 0
         for scanner in self._state.scanners:
-            if scanner.busy_until_hour <= current_hour:
-                scanner.busy_until_hour = 0
+            if scanner.busy_until_quantum <= current_quantum:
+                scanner.busy_until_quantum = 0
         for room in self._state.operating_rooms:
-            if room.busy_until_hour <= current_hour:
-                room.busy_until_hour = 0
+            if room.busy_until_quantum <= current_quantum:
+                room.busy_until_quantum = 0
     
     @staticmethod
     def _status_message(discharges: int, deaths: int, done: bool) -> str:
@@ -394,38 +404,47 @@ class HospitalEnvironment(Environment):
         if deaths:
             parts.append(f"{deaths} patients died")
         if not parts:
-            parts.append("No major changes this hour")
+            parts.append("No major changes this quantum")
         return ", ".join(parts)
 
 
     def _flatten_arrivals(self) -> List[Patient]:
         arrivals: List[Patient] = []
-        for hour in range(self._state.horizon_hours):
-            arrivals.extend(self._scheduled_arrivals.get(hour, []))
+        for quantum in range(0, self._state.horizon_quanta, self._state.step_quanta_per_step):
+            arrivals.extend(self._scheduled_arrivals.get(quantum, []))
         return arrivals
 
     # noinspection PyUnusedLocal
     def step(self, action: HospitalAction, **kwargs) -> HospitalObservation:
-        current_hour = self._state.current_hour
+        current_quantum = self._state.current_quantum
         before_deceased = len(self._state.deceased_patients)
         before_discharged = len(self._state.discharged_patients)
-        before_wait_time = self._state.metrics.total_wait_time_hours
+        before_wait_time = self._state.metrics.total_wait_time_quanta
 
-        self._move_to_waiting(current_hour)
+        quanta_to_advance = min(
+            self._state.step_quanta_per_step,
+            self._state.horizon_quanta - self._state.current_quantum,
+        )
+
+        self._move_to_waiting(current_quantum)
         self._apply_assignments(action)
 
-        self._advance_waiting_patients()
-        self._advance_active_patients()
+        for quantum_index in range(quanta_to_advance):
+            self._advance_waiting_patients()
+            self._advance_active_patients()
 
-        self._state.current_hour += 1
-        self._release_resources(self._state.current_hour)
+            self._state.current_quantum += 1
+            self._release_resources(self._state.current_quantum)
+
+            if quantum_index < quanta_to_advance - 1:
+                self._move_to_waiting(self._state.current_quantum)
 
         deaths_this_step = len(self._state.deceased_patients) - before_deceased
         discharges_this_step = len(self._state.discharged_patients) - before_discharged
-        wait_penalty = self._state.metrics.total_wait_time_hours - before_wait_time
+        wait_penalty = self._state.metrics.total_wait_time_quanta - before_wait_time
 
         all_patients_arrived = self._next_patient_index >= len(self._flatten_arrivals())
-        done = self._state.current_hour >= self._state.horizon_hours or (
+        done = self._state.current_quantum >= self._state.horizon_quanta or (
             not self._state.waiting_patients and
             not self._state.active_patients and
             all_patients_arrived
