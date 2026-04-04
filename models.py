@@ -6,6 +6,8 @@ from openenv.core.env_server import Action, Observation, State
 TIME_QUANTUM_MINUTES = 15
 TIME_QUANTA_PER_HOUR = 60 // TIME_QUANTUM_MINUTES
 QUANTA_PER_STEP = 2
+CRITICAL_LIMIT = 10
+
 
 def quanta_from_hours(hours: int) -> int:
     return hours * TIME_QUANTA_PER_HOUR
@@ -135,7 +137,7 @@ class Severity(StrEnum):
 
     @property
     def wait_deterioration(self) -> float:
-        return {Severity.LOW: 0.25, Severity.MEDIUM: 0.5, Severity.HIGH: 0.9, Severity.CRITICAL: 1.4}[self]
+        return {Severity.LOW: 0.0, Severity.MEDIUM: 0.5, Severity.HIGH: 0.9, Severity.CRITICAL: 1.4}[self]
 
     @property
     def recovery_rate(self) -> float:
