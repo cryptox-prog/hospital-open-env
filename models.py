@@ -7,6 +7,7 @@ from openenv.core.env_server import Action, Observation, State
 # The Resource Types
 # --------------------------------------------------------------------------------
 class DoctorType(StrEnum):
+    GENERAL = auto()
     ER = auto()
     RADIOLOGIST = auto()
 
@@ -86,9 +87,9 @@ class Severity(StrEnum):
     @property
     def required_doctor(self) -> DoctorType:
         return {
-            Severity.LOW: DoctorType.ER,
-            Severity.MEDIUM: DoctorType.ER,
-            Severity.HIGH: DoctorType.SURGEON,
+            Severity.LOW: DoctorType.GENERAL,
+            Severity.MEDIUM: DoctorType.GENERAL,
+            Severity.HIGH: DoctorType.ER,
             Severity.CRITICAL: DoctorType.SURGEON,
         }[self]
 
