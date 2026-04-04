@@ -10,7 +10,7 @@ from models import (HospitalState, HospitalObservation, DoctorResource,
                      TIME_QUANTA_PER_HOUR,
                      HospitalAction, HospitalMetrics)
 
-class HospitalEnviroment(Environment):
+class HospitalEnvironment(Environment):
     SUPPORTS_CONCURRENT_SESSIONS = True
 
     def __init__(self):
@@ -19,6 +19,7 @@ class HospitalEnviroment(Environment):
         self._scheduled_arrivals: Dict[int, List[Patient]] = {}
         self._next_patient_index = 0
 
+    # noinspection PyUnusedLocal
     def reset(self, config: dict, seed = None, episode_id = None, **kwargs) -> HospitalObservation:
         # config = {"doctors": {"er": 3, "surgeon": 2}, "nurses": {...}, ..., "patient: {"count": 20, "severity_weights": {"low": 2, "critical": 4}}"}
         # TODO: a default fallback config
@@ -37,11 +38,12 @@ class HospitalEnviroment(Environment):
 
         self._scheduled_arrivals = self._build_patients_schedule(config["patients"])
         self._next_patient_index = 0
-        self._move_to_wating(hour = 0)
+        self._move_to_waiting(hour = 0)
         self._state.metrics = HospitalMetrics()
-        return self._observation("Started Hospital Shift")
+        return self._observation(message="Started Hospital Shift")
         
-    def _build_resources(self, config: dict, resource_class, type_enum, prefix: str) -> list:
+    @staticmethod
+    def _build_resources(config: dict, resource_class, type_enum, prefix: str) -> list:
         resources = []
         for type_str, count in config.items():
             for i in range(1, count + 1):
@@ -51,7 +53,8 @@ class HospitalEnviroment(Environment):
                 ))
         return resources
     
-    def _build_operating_rooms(self, config: int) -> List[OperatingRoomResource]:
+    @staticmethod
+    def _build_operating_rooms(config: int) -> List[OperatingRoomResource]:
         operating_rooms = []
         for i in range(1, config + 1):
             operating_rooms.append(OperatingRoomResource(
@@ -171,7 +174,7 @@ class HospitalEnviroment(Environment):
 
         return schedule
 
-    def _move_to_wating(self, hour: int) -> None:
+    def _move_to_waiting(self, hour: int) -> None:
         new_patients = self._scheduled_arrivals.get(hour, [])
         if new_patients:
             self._state.waiting_patients.extend(new_patients)
@@ -229,20 +232,21 @@ class HospitalEnviroment(Environment):
             message = message,
         )
     
-    def _find_patient(self, patients: List[Patient], patient_id: str) -> Optional[Patient]:
+    @staticmethod
+    def _find_patient(patients: List[Patient], patient_id: str) -> Optional[Patient]:
         for patient in patients:
             if patient.patient_id == patient_id:
                 return patient
         return None
     
-    def _take_resource(self, resource_ids: List[str], resources: list, required_type) -> Optional[object]:
+    def _take_resource(self, resource_ids: List[str | None], resources: List[DoctorResource | ScannerResource], required_type) -> Optional[object]:
         for resource_id in resource_ids:
             resource = next((r for r in resources if r.resource_id == resource_id), None)
             if resource and resource.resource_type == required_type and self._resource_free(resource.busy_until_hour):
                 return resource
         return None
 
-    def _take_resources(self, resource_ids: List[str], resources: list, required_type, required_count: int) -> list:
+    def _take_resources(self, resource_ids: List[str], resources: List[NurseResource], required_type, required_count: int) -> list:
         taken = []
         for resource_id in resource_ids:
             resource = next((r for r in resources if r.resource_id == resource_id), None)
@@ -280,7 +284,7 @@ class HospitalEnviroment(Environment):
             scanner = self._take_resource([assignment.scanner_id], self._state.scanners, patient.required_scanner) if patient.required_scanner else None
             operating_room = self._take_operating_room(assignment.operating_room_id) if patient.operation_duration_hours > 0 else None
             
-            # if resources not in required amount skip assignement
+            # if resources not in required amount skip assignment
             if doctor is None or len(nurses) < patient.required_nurses or bed is None:
                 continue
             if patient.required_scanner is not None and scanner is None:
@@ -314,14 +318,16 @@ class HospitalEnviroment(Environment):
             if bed.occupied_by_patient_id == patient_id:
                 bed.occupied_by_patient_id = None
 
-    def _patient_died(self, patient: Patient) -> bool:
+    @staticmethod
+    def _patient_died(patient: Patient) -> bool:
         wait_limit = patient.severity.max_wait_hours
         critical_limit = 8.0
         if patient.severity == Severity.CRITICAL:
             return patient.waited_hours > wait_limit or patient.condition_score >= critical_limit
         return False
     
-    def _update_severity(self, patient: Patient) -> None:
+    @staticmethod
+    def _update_severity(patient: Patient) -> None:
         if patient.severity == Severity.HIGH and patient.waited_hours >= patient.severity.max_wait_hours:
             patient.severity = Severity.CRITICAL
 
@@ -378,7 +384,8 @@ class HospitalEnviroment(Environment):
             if room.busy_until_hour <= current_hour:
                 room.busy_until_hour = 0
     
-    def _status_message(self, discharges: int, deaths: int, done: bool) -> str:
+    @staticmethod
+    def _status_message(discharges: int, deaths: int, done: bool) -> str:
         if done:
             return "Shift complete."
         parts = []
@@ -397,13 +404,14 @@ class HospitalEnviroment(Environment):
             arrivals.extend(self._scheduled_arrivals.get(hour, []))
         return arrivals
 
-    def step(self, action: HospitalAction, timeout_s = None, **kwargs) -> HospitalObservation:
+    # noinspection PyUnusedLocal
+    def step(self, action: HospitalAction, **kwargs) -> HospitalObservation:
         current_hour = self._state.current_hour
         before_deceased = len(self._state.deceased_patients)
         before_discharged = len(self._state.discharged_patients)
         before_wait_time = self._state.metrics.total_wait_time_hours
 
-        self._move_to_wating(current_hour)
+        self._move_to_waiting(current_hour)
         self._apply_assignments(action)
 
         self._advance_waiting_patients()
