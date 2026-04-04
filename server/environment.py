@@ -309,7 +309,7 @@ class HospitalEnviroment(Environment):
         return False
     
     def _update_severity(self, patient: Patient) -> None:
-        if patient.severity == Severity.HIGH and patient.waited_hours >= patient.max_wait_hours:
+        if patient.severity == Severity.HIGH and patient.waited_hours >= patient.severity.max_wait_hours:
             patient.severity = Severity.CRITICAL
 
 

@@ -112,7 +112,7 @@ class Severity(StrEnum):
 
     @property
     def max_wait_hours(self) -> float:
-        return {Severity.LOW: 8.0, Severity.MEDIUM: 6.0, Severity.HIGH: 4.0, Severity.CRITICAL: 2.0}[self]
+        return {Severity.LOW: 4.0, Severity.MEDIUM: 3.0, Severity.HIGH: 2.0, Severity.CRITICAL: 2.0}[self]
 
     @property
     def initial_condition_score(self) -> float:
@@ -134,7 +134,6 @@ class Patient(State):
     arrival_hour: float
     severity: Severity
     condition_score: float = 0.0 # higher score means worse condition
-    max_wait_hours: float = 4.0 # kill the patient with consideration of severity
     waited_hours: float = 0
     
     treatment_started_hour : Optional[float] = None
