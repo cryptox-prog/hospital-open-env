@@ -304,13 +304,21 @@ class HospitalEnviroment(Environment):
     def _patient_died(self, patient: Patient) -> bool:
         wait_limit = patient.severity.max_wait_hours
         critical_limit = 8.0
-        return patient.waited_hours > wait_limit or patient.condition_score >= critical_limit
+        if patient.severity == Severity.CRITICAL:
+            return patient.waited_hours > wait_limit or patient.condition_score >= critical_limit
+        return False
+    
+    def _update_severity(self, patient: Patient) -> None:
+        if patient.severity == Severity.HIGH and patient.waited_hours >= patient.max_wait_hours:
+            patient.severity = Severity.CRITICAL
+
 
     def _advance_waiting_patients(self) -> None:
         surviving_waiting: List[Patient] = []
         for patient in self._state.waiting_patients:
             patient.waited_hours += 1
             patient.condition_score += patient.severity.wait_deterioration
+            self._update_severity(patient)
             self._state.metrics.total_wait_time_hours += 1
 
             if self._patient_died(patient):
