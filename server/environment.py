@@ -7,6 +7,7 @@ from typing import List, Dict, Optional
 from models import (HospitalState, HospitalObservation, DoctorResource,
                      DoctorType, NurseResource, NurseType, OperationType, ScannerResource, ScannerType,
                      BedResource, BedType, OperatingRoomResource, Severity, Patient,
+                     TIME_QUANTA_PER_HOUR,
                      HospitalAction, HospitalMetrics)
 
 class HospitalEnviroment(Environment):
@@ -59,7 +60,7 @@ class HospitalEnviroment(Environment):
         return operating_rooms
     
     def _build_patients_schedule(self, config: dict) -> Dict[int, List[Patient]]:
-        schedule: Dict[int, List[Patient]] = {hour: [] for hour in range(self._state.horizon_hours)}
+        schedule: Dict[int, List[Patient]] = {slot: [] for slot in range(self._state.horizon_hours)}
         
         count = config["count"]
         spread = config["arrival_spread"]
@@ -69,37 +70,53 @@ class HospitalEnviroment(Environment):
         severity_weights = list(weights_raw.values())
 
         for i in range(count):
-            # pick arrival hour based on spread
+            # pick arrival time slot based on spread
             if spread == "uniform":
-                # pick random number from 0 to 23
+                # pick a random 15-minute slot across the day
                 arrival_hour = self._rng.randint(0, self._state.horizon_hours - 1)
             elif spread == "peak_hours":
-                # assign a weight of 3 to all 'hours' in the list and the rest as 1, thus patients
-                # 3 times more likely to arrive at these 'peak hours' 
+                # assign a weight of 3 to all peak hours and 1 elsewhere
                 arrival_hour = self._rng.choices(
                     range(self._state.horizon_hours),
-                    weights = [3 if h in (8,9,10,17,18,19) else 1 for h in range(self._state.horizon_hours)],
+                    weights = [
+                        3 if (slot // self._state.time_quanta_per_hour) in (8, 9, 10, 17, 18, 19) else 1
+                        for slot in range(self._state.horizon_hours)
+                    ],
                     k = 1
                 )[0]
             elif spread == "front_loaded":
-                # weight for hour 0 is 24 - 0 = 24, and decreasing so on
+                # weight for hour 0 is 24 and decreases through the day
                 arrival_hour = self._rng.choices(
                     range(self._state.horizon_hours),
-                    weights = [self._state.horizon_hours - h for h in range(self._state.horizon_hours)],
+                    weights = [
+                        (24 - (slot // self._state.time_quanta_per_hour))
+                        for slot in range(self._state.horizon_hours)
+                    ],
                     k = 1
                 )[0]
             elif spread == "back_loaded":
                 # reverse of front_loaded
                 arrival_hour = self._rng.choices(
                     range(self._state.horizon_hours),
-                    weights = [h + 1 for h in range(self._state.horizon_hours)],
+                    weights = [
+                        ((slot // self._state.time_quanta_per_hour) + 1)
+                        for slot in range(self._state.horizon_hours)
+                    ],
                     k = 1
                 )[0]
             elif spread == "custom":
-                # need list of 24 weights
+                # supports either 24 hourly weights or per-slot weights
+                arrival_weights = config["arrival_weights"]
+                if len(arrival_weights) == 24:
+                    slot_weights = [arrival_weights[slot // self._state.time_quanta_per_hour] for slot in range(self._state.horizon_hours)]
+                elif len(arrival_weights) == self._state.horizon_hours:
+                    slot_weights = arrival_weights
+                else:
+                    raise ValueError("arrival_weights must have length 24 or horizon_hours")
+
                 arrival_hour = self._rng.choices(
                     range(self._state.horizon_hours),
-                    weights = config["arrival_weights"],
+                    weights = slot_weights,
                     k = 1
                 )[0]
             else:
@@ -110,32 +127,28 @@ class HospitalEnviroment(Environment):
             # k = 1 => pick 1 element (returns single element list) thus pick the first element from that list
 
             required_scanner = self._rng.choice([None, ScannerType.XRAY, ScannerType.CT, ScannerType.MRI])
-
-            # critical patients have 60% chance of needing operation
+            
             operation_type = None
             operation_duration_hours = 0
+            required_blood_units = 0
+            required_oxygen = False
 
-            if severity in (Severity.HIGH, Severity.CRITICAL):
-
-                # choose operation based on likelihood weights
+            if self._rng.random() < severity.operation_probability:
                 operation_choices = list(OperationType)
                 weights = [op.likelihood for op in operation_choices]
-
                 operation_type = self._rng.choices(operation_choices, weights=weights, k=1)[0]
-
                 operation_duration_hours = operation_type.base_duration_hours
-                
-                required_blood_units = 0
-                required_oxygen = False
-                required_ventilator = False
 
-                if severity == Severity.HIGH:
-                    required_oxygen = True
-                    required_blood_units = self._rng.choice([0,1])
+            if self._rng.random() < severity.oxygen_probability:
+                required_oxygen = True
 
-                if severity == Severity.CRITICAL:
-                    required_oxygen = True
-                    required_blood_units = self._rng.randint(1,3)
+            if self._rng.random() < severity.blood_probability:
+                if severity == Severity.MEDIUM:
+                    required_blood_units = 1
+                elif severity == Severity.HIGH:
+                    required_blood_units = self._rng.randint(1, 2)
+                else:
+                    required_blood_units = self._rng.randint(2, 4)
                     
             patient = Patient(
                 patient_id = f"patient-{i + 1}",
@@ -164,7 +177,7 @@ class HospitalEnviroment(Environment):
             self._state.waiting_patients.extend(new_patients)
             self._next_patient_index += len(new_patients)
 
-    def _resource_free(self, busy_until_hour: float) -> bool:
+    def _resource_free(self, busy_until_hour: int) -> bool:
         return busy_until_hour <= self._state.current_hour
 
     def _count_free_resources(self, resources: list, type_enum) -> dict:
@@ -317,7 +330,7 @@ class HospitalEnviroment(Environment):
         surviving_waiting: List[Patient] = []
         for patient in self._state.waiting_patients:
             patient.waited_hours += 1
-            patient.condition_score += patient.severity.wait_deterioration
+            patient.condition_score += patient.severity.wait_deterioration / TIME_QUANTA_PER_HOUR
             self._update_severity(patient)
             self._state.metrics.total_wait_time_hours += 1
 
@@ -333,7 +346,7 @@ class HospitalEnviroment(Environment):
 
         for patient in self._state.active_patients:
             hours_elapsed = self._state.current_hour - patient.treatment_started_hour
-            patient.condition_score = max(0.0, patient.condition_score - patient.severity.recovery_rate)
+            patient.condition_score = max(0.0, patient.condition_score - (patient.severity.recovery_rate / TIME_QUANTA_PER_HOUR))
 
             if hours_elapsed >= patient.treatment_hours:
                 patient.is_stable = True
@@ -410,7 +423,7 @@ class HospitalEnviroment(Environment):
             all_patients_arrived
         )
 
-        reward = discharges_this_step * 1.0 - deaths_this_step * 2.0 - 0.1 * wait_penalty
+        reward = discharges_this_step * 1.0 - deaths_this_step * 2.0 - 0.1 * (wait_penalty / TIME_QUANTA_PER_HOUR)
         self._state.metrics.objective_score += reward
 
         return self._observation(done=done, reward=reward, message=self._status_message(discharges_this_step, deaths_this_step, done))
