@@ -5,7 +5,7 @@ from openenv.core.env_server import Action, Observation, State
 
 TIME_QUANTUM_MINUTES = 15
 TIME_QUANTA_PER_HOUR = 60 // TIME_QUANTUM_MINUTES
-
+QUANTA_PER_STEP = 2
 
 def quanta_from_hours(hours: int) -> int:
     return hours * TIME_QUANTA_PER_HOUR
@@ -255,7 +255,7 @@ class HospitalState(State):
     horizon_quanta: int = quanta_from_hours(24)
     time_quantum_minutes: int = TIME_QUANTUM_MINUTES
     time_quanta_per_hour: int = TIME_QUANTA_PER_HOUR
-    step_quanta_per_step: int = 2
+    quanta_per_step: int = QUANTA_PER_STEP
 
     waiting_patients: List[Patient] = []
     active_patients: List[Patient] = []

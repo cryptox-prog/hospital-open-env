@@ -62,7 +62,7 @@ class HospitalEnvironment(Environment):
         return operating_rooms
     
     def _build_patients_schedule(self, config: dict) -> Dict[int, List[Patient]]:
-        schedule: Dict[int, List[Patient]] = {quantum: [] for quantum in range(0, self._state.horizon_quanta, self._state.step_quanta_per_step)}
+        schedule: Dict[int, List[Patient]] = {quantum: [] for quantum in range(0, self._state.horizon_quanta, self._state.quanta_per_step)}
         
         count = config["count"]
         spread = config["arrival_spread"]
@@ -71,9 +71,14 @@ class HospitalEnvironment(Environment):
         severities = [Severity(k.upper()) for k in weights_raw.keys()]
         severity_weights = list(weights_raw.values())
 
-        arrival_quanta = list(range(0, self._state.horizon_quanta, self._state.step_quanta_per_step))
+        arrival_cutoff_quantum = 20 * self._state.time_quanta_per_hour
+        arrival_quanta = [
+            quantum
+            for quantum in range(0, self._state.horizon_quanta, self._state.quanta_per_step)
+            if quantum < arrival_cutoff_quantum
+        ]
         if not arrival_quanta:
-            raise ValueError("step_quanta_per_step is too large for the configured horizon")
+            raise ValueError("quanta_per_step is too large for the configured horizon")
 
         for i in range(count):
             # pick arrival quantum based on spread
@@ -409,7 +414,7 @@ class HospitalEnvironment(Environment):
 
     def _flatten_arrivals(self) -> List[Patient]:
         arrivals: List[Patient] = []
-        for quantum in range(0, self._state.horizon_quanta, self._state.step_quanta_per_step):
+        for quantum in range(0, self._state.horizon_quanta, self._state.quanta_per_step):
             arrivals.extend(self._scheduled_arrivals.get(quantum, []))
         return arrivals
 
@@ -421,7 +426,7 @@ class HospitalEnvironment(Environment):
         before_wait_time = self._state.metrics.total_wait_time_quanta
 
         quanta_to_advance = min(
-            self._state.step_quanta_per_step,
+            self._state.quanta_per_step,
             self._state.horizon_quanta - self._state.current_quantum,
         )
 
