@@ -1,0 +1,347 @@
+import json
+import os
+from typing import List, Optional, Sequence
+
+from openai import OpenAI
+
+from models import HospitalAction, Patient, ResourceAssignment, Severity
+from server.environment import HospitalEnvironment
+
+API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME", "")
+BENCHMARK = os.getenv("HOSPITAL_BENCHMARK", "hospital-open-env")
+TASK_NAME = os.getenv("HOSPITAL_TASK")
+
+MAX_STEPS = 48
+TEMPERATURE = 0.0
+MAX_TOKENS = 96
+
+TASK_ORDER: Sequence[str] = ("easy", "medium", "difficult")
+
+TASK_CONFIGS = {
+    "easy": {
+        "doctors": {
+            "general": 5,
+            "er": 4,
+            "radiologist": 2,
+            "general_surgeon": 2,
+            "cardiothoracic_surgeon": 1,
+            "obstetric_surgeon": 1,
+        },
+        "nurses": {"general": 10, "er": 8, "or": 4},
+        "scanners": {"xray": 2, "ct": 2, "mri": 1},
+        "beds": {"general": 18, "er": 8},
+        "operating-rooms": 4,
+        "patients": {
+            "count": 24,
+            "arrival_spread": "uniform",
+            "severity_weights": {"low": 45, "medium": 35, "high": 15, "critical": 5},
+        },
+    },
+    "medium": {
+        "doctors": {
+            "general": 4,
+            "er": 3,
+            "radiologist": 1,
+            "general_surgeon": 2,
+            "cardiothoracic_surgeon": 1,
+            "obstetric_surgeon": 1,
+        },
+        "nurses": {"general": 8, "er": 6, "or": 3},
+        "scanners": {"xray": 2, "ct": 1, "mri": 1},
+        "beds": {"general": 14, "er": 6},
+        "operating-rooms": 3,
+        "patients": {
+            "count": 42,
+            "arrival_spread": "peak_hours",
+            "severity_weights": {"low": 25, "medium": 35, "high": 25, "critical": 15},
+        },
+    },
+    "difficult": {
+        "doctors": {
+            "general": 3,
+            "er": 2,
+            "radiologist": 1,
+            "general_surgeon": 1,
+            "cardiothoracic_surgeon": 1,
+            "obstetric_surgeon": 1,
+        },
+        "nurses": {"general": 6, "er": 4, "or": 2},
+        "scanners": {"xray": 1, "ct": 1, "mri": 1},
+        "beds": {"general": 10, "er": 4},
+        "operating-rooms": 2,
+        "patients": {
+            "count": 64,
+            "arrival_spread": "front_loaded",
+            "severity_weights": {"low": 10, "medium": 25, "high": 35, "critical": 30},
+        },
+    },
+}
+
+SEVERITY_ORDER = {
+    Severity.CRITICAL: 0,
+    Severity.HIGH: 1,
+    Severity.MEDIUM: 2,
+    Severity.LOW: 3,
+}
+
+SYSTEM_PROMPT = (
+    "You are planning hospital resource allocation. Return only a short JSON array of patient ids "
+    "ordered by priority or an empty array if no ordering is needed. "
+    "Prioritize critical and high severity patients with higher condition scores first."
+)
+
+
+# --------------------------------------------------------------------------------
+# Log Functions
+# --------------------------------------------------------------------------------
+def log_start(task: str, env: str, model: str) -> None:
+    print(f"[START] task={task} env={env} model={model}", flush=True)
+
+def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
+    error_val = error if error else "null"
+    done_val = str(done).lower()
+    print(
+        f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}",
+        flush=True,
+    )
+
+def log_end(success: bool, steps: int, rewards: List[float]) -> None:
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
+
+
+
+# --------------------------------------------------------------------------------
+# Tasks Helprer Functions
+# --------------------------------------------------------------------------------
+def get_task_config(task_name: str) -> dict:
+    return TASK_CONFIGS.get(task_name, TASK_CONFIGS["easy"])
+
+def is_task_enabled(task_name: str) -> bool:
+    return TASK_NAME is None or TASK_NAME == task_name or TASK_NAME == "all"
+
+
+# --------------------------------------------------------------------------------
+# Get currently free resources
+# --------------------------------------------------------------------------------
+def free_resources_by_time(resources, current_quantum: int):
+    free_resources = []
+    for resource in resources:
+        if resource.busy_until_quantum <= current_quantum:
+            free_resources.append(resource)
+    return free_resources
+
+def free_beds_by_occupancy(beds):
+    free_beds = []
+    for bed in beds:
+        if bed.occupied_by_patient_id is None:
+            free_beds.append(bed)
+    return free_beds
+
+
+def format_assignment(assignment: ResourceAssignment) -> str:
+    # Conver resource assignement struct to string for step logging
+    nurse_part = "+".join(assignment.nurse_ids) if assignment.nurse_ids else "none"
+    scanner_part = assignment.scanner_id or "none"
+    room_part = assignment.operating_room_id or "none"
+    doctor_part = ",".join(assignment.doctor_ids) if assignment.doctor_ids else "none"
+    return (
+        f"{assignment.patient_id}|doc={doctor_part}|nurses={nurse_part}|bed={assignment.bed_id}"
+        f"|scan={scanner_part}|or={room_part}"
+    )
+
+def summarize_patient(patient: Patient) -> str:
+    # Convert patient struct to string for prompt formatting
+    scanner = patient.required_scanner.value if patient.required_scanner else "none"
+    operation = patient.operation_type.value if patient.operation_type else "none"
+    return (
+        f"{patient.patient_id}:{patient.severity.value}:cond={patient.condition_score:.1f}:"
+        f"wait={patient.waited_quanta}:doc={patient.required_doctor.value}:"
+        f"nurse={patient.required_nurse_type.value}x{patient.required_nurses}:"
+        f"bed={patient.required_bed_type.value}:scan={scanner}:op={operation}"
+    )
+
+
+def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
+    # a prelinimary order of patients based on severity, condition score, and wait time
+    heuristic_order = [
+        patient.patient_id
+        for patient in sorted(
+            state.waiting_patients,
+            key=lambda p: (SEVERITY_ORDER[p.severity], -p.condition_score, -p.waited_quanta, p.arrival_quantum),
+        )
+    ]
+
+    # if no client or not enough patients, return the heuristic order without calling the model
+    if client is None or len(heuristic_order) < 2:
+        return heuristic_order
+
+    # dont take too many patients for 1 prompt current limit 10
+    # TODO: should this be limited ???
+    candidates = state.waiting_patients[: min(10, len(state.waiting_patients))]
+    if not candidates:
+        return heuristic_order
+
+    user_prompt = (
+        f"Task: Allocate hospital patients at quantum {state.current_quantum}.\n"
+        f"Waiting patients: {', '.join(summarize_patient(p) for p in candidates)}\n"
+        "Return a JSON array of patient ids in priority order only."
+    )
+    try:
+        completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_prompt},
+            ],
+            temperature=TEMPERATURE,
+            max_tokens=MAX_TOKENS,
+            stream=False,
+        )
+        raw = (completion.choices[0].message.content or "").strip()
+
+        # extract list from llm response
+        start = raw.find("[")
+        end = raw.rfind("]")
+
+        if start != -1 and end != -1 and end > start:
+            data = json.loads(raw[start : end + 1])
+            if isinstance(data, list):
+                # keep the order from the model but filter out any ids that are not in the heuristic order
+                parsed = [str(item) for item in data if str(item) in heuristic_order]
+                if parsed:
+                    remaining = [pid for pid in heuristic_order if pid not in parsed]
+                    return parsed + remaining
+    except Exception as exc:
+        _ = exc
+    return heuristic_order
+
+
+# --------------------------------------------------------------------------------
+# Acquire 1 or n resources from res pool, decide if they are the correct using lambda fucntion (predicate)
+# --------------------------------------------------------------------------------
+def take_first(pool, predicate):
+    for index, resource in enumerate(pool):
+        if predicate(resource):
+            return pool.pop(index)
+    return None
+
+def take_n(pool, predicate, count: int):
+    taken = []
+    for _ in range(count):
+        resource = take_first(pool, predicate)
+        if resource is None:
+            return []
+        taken.append(resource)
+    return taken
+
+
+def build_action(state, client: Optional[OpenAI]) -> tuple[HospitalAction, str]:
+    priority_ids = choose_priority_order(client, state)
+    waiting_by_id = {patient.patient_id: patient for patient in state.waiting_patients}
+
+    available_doctors = free_resources_by_time(state.doctors, state.current_quantum)
+    available_nurses = free_resources_by_time(state.nurses, state.current_quantum)
+    available_scanners = free_resources_by_time(state.scanners, state.current_quantum)
+    available_beds = free_beds_by_occupancy(state.beds)
+    available_rooms = free_resources_by_time(state.operating_rooms, state.current_quantum)
+
+    assignments: List[ResourceAssignment] = []
+    action_parts: List[str] = []
+
+    for patient_id in priority_ids:
+        patient = waiting_by_id.get(patient_id)
+        if patient is None:
+            continue
+
+        doctor = take_first(available_doctors, lambda r, required=patient.required_doctor: r.resource_type == required)
+        nurses = take_n(available_nurses, lambda r, required=patient.required_nurse_type: r.resource_type == required, patient.required_nurses)
+        bed = take_first(available_beds, lambda r, required=patient.required_bed_type: r.resource_type == required)
+        scanner = None
+        if patient.required_scanner is not None:
+            scanner = take_first(
+                available_scanners,
+                lambda r, required=patient.required_scanner: r.resource_type == required,
+            )
+        operating_room = None
+        if patient.operation_duration_quanta > 0:
+            operating_room = take_first(available_rooms, lambda _: True)
+
+        if doctor is None or len(nurses) < patient.required_nurses or bed is None:
+            continue
+        if patient.required_scanner is not None and scanner is None:
+            continue
+        if patient.operation_duration_quanta > 0 and operating_room is None:
+            continue
+
+        assignment = ResourceAssignment(
+            patient_id=patient.patient_id,
+            doctor_ids=[doctor.resource_id],
+            nurse_ids=[nurse.resource_id for nurse in nurses],
+            scanner_id=scanner.resource_id if scanner is not None else None,
+            bed_id=bed.resource_id,
+            operating_room_id=operating_room.room_id if operating_room is not None else None,
+        )
+        assignments.append(assignment)
+        action_parts.append(format_assignment(assignment))
+
+    if not assignments:
+        return HospitalAction(assignments=[]), "nope"
+
+    return HospitalAction(assignments=assignments), "||".join(action_parts)
+
+
+def run_task(task_name: str, client: Optional[OpenAI]) -> None:
+    env = HospitalEnvironment()
+    rewards: List[float] = []
+    steps_taken = 0
+    success = False
+
+    log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
+
+    try:
+        result = env.reset(config=get_task_config(task_name), seed=42, episode_id=f"{task_name}-episode")
+
+        if client is not None:
+            try:
+                _ = choose_priority_order(client, env.state)
+            except Exception:
+                pass
+
+        for step in range(1, MAX_STEPS + 1):
+            if bool(result.done):
+                success = True
+                break
+
+            action, action_label = build_action(env.state, client)
+
+            try:
+                result = env.step(action)
+                reward = float(result.reward or 0.0)
+                done = bool(result.done)
+                rewards.append(reward)
+                steps_taken = step
+                log_step(step=step, action=action_label, reward=reward, done=done, error=None)
+                success = done
+            except Exception as exc:
+                log_step(step=step, action=action_label, reward=0.0, done=True, error=str(exc))
+                success = False
+                break
+
+            if done:
+                break
+    finally:
+        try:
+            env.close()
+        finally:
+            log_end(success=success, steps=steps_taken, rewards=rewards)
+
+
+if __name__ == "__main__":
+    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY) if API_KEY else None
+    tasks = [TASK_NAME] if TASK_NAME in TASK_CONFIGS else list(TASK_ORDER)
+    for task_name in tasks:
+        run_task(task_name, client)
