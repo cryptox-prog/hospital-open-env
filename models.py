@@ -257,7 +257,10 @@ class OperatingRoomResource(State):
 
 class HospitalMetrics(State):
     treated_patients: int = 0
-    discharged_patients: int = 0
+    discharged_critical: int = 0
+    discharged_high: int = 0
+    discharged_med: int = 0
+    discharged_low: int = 0
     left_patients: int = 0
     deceased_patients: int = 0
     overflow_patients: int = 0

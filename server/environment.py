@@ -396,6 +396,14 @@ class HospitalEnvironment(Environment):
                 patient.is_stable = True
                 self._state.discharged_patients.append(patient)
                 discharges += 1
+                if patient.severity == Severity.CRITICAL:
+                    self._state.metrics.discharged_critical += 1
+                elif patient.severity == Severity.HIGH:
+                    self._state.metrics.discharged_high += 1
+                elif patient.severity == Severity.MEDIUM:
+                    self._state.metrics.discharged_med += 1
+                elif patient.severity == Severity.LOW:
+                    self._state.metrics.discharged_low += 1
                 self._release_patient_resources(patient.patient_id)
             elif self._patient_died(patient):
                 self._state.deceased_patients.append(patient)
@@ -405,7 +413,6 @@ class HospitalEnvironment(Environment):
                 remaining_active.append(patient)
 
         self._state.active_patients = remaining_active
-        self._state.metrics.discharged_patients += discharges
         return discharges
 
     def _release_resources(self, current_quantum: int) -> None:
@@ -446,8 +453,12 @@ class HospitalEnvironment(Environment):
     def step(self, action: HospitalAction, **kwargs) -> HospitalObservation:
         current_quantum = self._state.current_quantum
         before_deceased = self._state.metrics.deceased_patients
-        before_discharged = self._state.metrics.discharged_patients
+        before_discharged_critical = self._state.metrics.discharged_critical
+        before_discharged_high = self._state.metrics.discharged_high
+        before_discharged_med = self._state.metrics.discharged_med
+        before_discharged_low = self._state.metrics.discharged_low
         before_left = self._state.metrics.left_patients
+        before_left_without_wait = self._state.metrics.overflow_patients
         before_wait_time = self._state.metrics.total_wait_time_quanta
 
         quanta_to_advance = min(
@@ -469,8 +480,12 @@ class HospitalEnvironment(Environment):
                 self._move_to_waiting(self._state.current_quantum)
 
         deaths_this_step = self._state.metrics.deceased_patients - before_deceased
-        discharges_this_step = self._state.metrics.discharged_patients - before_discharged
+        critical_discharges_this_step = self._state.metrics.discharged_critical - before_discharged_critical
+        high_discharges_this_step = self._state.metrics.discharged_high - before_discharged_high
+        med_discharges_this_step = self._state.metrics.discharged_med - before_discharged_med
+        low_discharges_this_step = self._state.metrics.discharged_low - before_discharged_low
         left_this_step = self._state.metrics.left_patients - before_left
+        left_without_wait_this_step = self._state.metrics.overflow_patients - before_left_without_wait
         wait_penalty = self._state.metrics.total_wait_time_quanta - before_wait_time
 
         all_patients_arrived = self._next_patient_index >= len(self._flatten_arrivals())
@@ -480,10 +495,10 @@ class HospitalEnvironment(Environment):
             all_patients_arrived
         )
 
-        reward = discharges_this_step * 1.0 - deaths_this_step * 2.0 - self._wait_penalty_to_reward(wait_penalty)
+        reward = critical_discharges_this_step * 5.0 + high_discharges_this_step * 3.0 + med_discharges_this_step * 2.0 + low_discharges_this_step * 1.0 - deaths_this_step * 8.0 - self._wait_penalty_to_reward(wait_penalty) - left_without_wait_this_step * 0.5 - left_this_step * 1.0
         self._state.metrics.objective_score += reward
 
-        return self._observation(done=done, reward=reward, message=self._status_message(discharges_this_step, deaths_this_step, done))
+        return self._observation(done=done, reward=reward, message=self._status_message(critical_discharges_this_step + high_discharges_this_step + med_discharges_this_step + low_discharges_this_step, deaths_this_step, done))
 
 
     @property
