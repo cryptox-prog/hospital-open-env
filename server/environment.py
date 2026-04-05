@@ -458,7 +458,7 @@ class HospitalEnvironment(Environment):
         before_discharged_med = self._state.metrics.discharged_med
         before_discharged_low = self._state.metrics.discharged_low
         before_left = self._state.metrics.left_patients
-        before_left_without_wait = self._state.metrics.overflow_patients
+        before_denied_admission = self._state.metrics.overflow_patients
         before_wait_time = self._state.metrics.total_wait_time_quanta
 
         quanta_to_advance = min(
@@ -485,7 +485,7 @@ class HospitalEnvironment(Environment):
         med_discharges_this_step = self._state.metrics.discharged_med - before_discharged_med
         low_discharges_this_step = self._state.metrics.discharged_low - before_discharged_low
         left_this_step = self._state.metrics.left_patients - before_left
-        left_without_wait_this_step = self._state.metrics.overflow_patients - before_left_without_wait
+        denied_admission_this_step = self._state.metrics.overflow_patients - before_denied_admission
         wait_penalty = self._state.metrics.total_wait_time_quanta - before_wait_time
 
         all_patients_arrived = self._next_patient_index >= len(self._flatten_arrivals())
@@ -495,7 +495,7 @@ class HospitalEnvironment(Environment):
             all_patients_arrived
         )
 
-        reward = critical_discharges_this_step * 5.0 + high_discharges_this_step * 3.0 + med_discharges_this_step * 2.0 + low_discharges_this_step * 1.0 - deaths_this_step * 8.0 - self._wait_penalty_to_reward(wait_penalty) - left_without_wait_this_step * 0.5 - left_this_step * 1.0
+        reward = critical_discharges_this_step * 5.0 + high_discharges_this_step * 3.0 + med_discharges_this_step * 2.0 + low_discharges_this_step * 1.0 - deaths_this_step * 8.0 - self._wait_penalty_to_reward(wait_penalty) - denied_admission_this_step * 0.5 - left_this_step * 1.0
         self._state.metrics.objective_score += reward
 
         return self._observation(done=done, reward=reward, message=self._status_message(critical_discharges_this_step + high_discharges_this_step + med_discharges_this_step + low_discharges_this_step, deaths_this_step, done))
