@@ -205,7 +205,12 @@ class HospitalEnvironment(Environment):
         for resource_type in type_enum:
             count = 0
             for r in resources:
-                if r.resource_type == resource_type and self._resource_free(r.busy_until_quantum):
+                if r.resource_type != resource_type:
+                    continue
+                if isinstance(r, BedResource):
+                    if r.occupied_by_patient_id is None:
+                        count += 1
+                elif self._resource_free(r.busy_until_quantum):
                     count += 1
             result[resource_type.value] = count
         return result

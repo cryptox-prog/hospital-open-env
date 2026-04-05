@@ -309,8 +309,11 @@ class HospitalAction(Action):
 
 
 class HospitalObservation(Observation):
+    done: bool = False
+    reward: Optional[float] = None
     current_quantum: int
     waiting_patients: int
     critical_waiting_patients: int
-    resources_free: Dict[str, int]
+    resources_free: Dict[str, Dict[str, int] | int]
     queue_by_severity: Dict[str, int]
+    message: str = ""
