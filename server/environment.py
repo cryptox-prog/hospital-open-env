@@ -359,6 +359,11 @@ class HospitalEnvironment(Environment):
     def _update_severity(patient: Patient) -> None:
         if patient.severity == Severity.HIGH and patient.waited_quanta >= patient.severity.max_wait_quanta:
             patient.severity = Severity.CRITICAL
+            patient.max_wait_quanta = patient.severity.max_wait_quanta
+            patient.required_doctor = patient.severity.required_doctor
+            patient.required_nurse_type = patient.severity.required_nurse
+            patient.required_nurses = patient.severity.required_nurses_count
+            patient.required_bed_type = patient.severity.required_bed
 
 
     def _advance_waiting_patients(self) -> None:
