@@ -14,7 +14,7 @@ class HospitalEnvironment(Environment):
 
     def __init__(self):
         self._rng = random.Random()
-        self._state = HospitalState()
+        self._state = None
         self._scheduled_arrivals: Dict[int, List[Patient]] = {}
         self._next_patient_index = 0
 
@@ -48,7 +48,7 @@ class HospitalEnvironment(Environment):
             for i in range(1, count + 1):
                 resources.append(resource_class(
                     resource_id=f"{prefix}-{type_str}-{i}",
-                    resource_type=type_enum(type_str.upper())
+                    resource_type=type_enum(type_str.lower())
                 ))
         return resources
     
@@ -68,7 +68,7 @@ class HospitalEnvironment(Environment):
         spread = config["arrival_spread"]
         weights_raw = config["severity_weights"]
         
-        severities = [Severity(k.upper()) for k in weights_raw.keys()]
+        severities = [Severity(k.lower()) for k in weights_raw.keys()]
         severity_weights = list(weights_raw.values())
 
         arrival_cutoff_quantum = 20 * self._state.time_quanta_per_hour
@@ -322,12 +322,7 @@ class HospitalEnvironment(Environment):
             doctor.busy_until_quantum = self._state.current_quantum + patient.treatment_quanta
             for nurse in nurses:
                 nurse.busy_until_quantum = self._state.current_quantum + patient.treatment_quanta
-            if patient.severity == Severity.CRITICAL:
-                bed.occupied_by_patient_id = patient.patient_id
-                bed.resource_type = BedType.ER
-            elif patient.severity == Severity.HIGH:
-                bed.occupied_by_patient_id = patient.patient_id
-                bed.resource_type = BedType.GENERAL
+            bed.occupied_by_patient_id = patient.patient_id
             
             if scanner is not None:
                 scanner.busy_until_quantum = self._state.current_quantum + 1

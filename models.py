@@ -265,6 +265,7 @@ class HospitalMetrics(State):
     deceased_patients: int = 0
     overflow_patients: int = 0
     total_wait_time_quanta: int = 0
+    objective_score: float = 0.0
 
 class HospitalState(State):
     episode_id: str
