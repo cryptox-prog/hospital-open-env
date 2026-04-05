@@ -341,6 +341,12 @@ class HospitalEnvironment(Environment):
         return False
     
     @staticmethod
+    def _patient_left(patient: Patient) -> bool:
+        if patient.severity in (Severity.LOW, Severity.MEDIUM):
+            return patient.waited_quanta >= patient.max_wait_quanta
+        return False
+
+    @staticmethod
     def _update_severity(patient: Patient) -> None:
         if patient.severity == Severity.HIGH and patient.waited_quanta >= patient.severity.max_wait_quanta:
             patient.severity = Severity.CRITICAL
@@ -356,6 +362,9 @@ class HospitalEnvironment(Environment):
 
             if self._patient_died(patient):
                 self._state.deceased_patients.append(patient)
+            elif self._patient_left(patient):
+                self._state.left_patients.append(patient)
+                self._state.metrics.left_patients += 1
             else:
                 surviving_waiting.append(patient)
         self._state.waiting_patients = surviving_waiting
@@ -423,6 +432,7 @@ class HospitalEnvironment(Environment):
         current_quantum = self._state.current_quantum
         before_deceased = len(self._state.deceased_patients)
         before_discharged = len(self._state.discharged_patients)
+        before_left = self._state.metrics.left_patients
         before_wait_time = self._state.metrics.total_wait_time_quanta
 
         quanta_to_advance = min(
@@ -445,6 +455,7 @@ class HospitalEnvironment(Environment):
 
         deaths_this_step = len(self._state.deceased_patients) - before_deceased
         discharges_this_step = len(self._state.discharged_patients) - before_discharged
+        left_this_step = self._state.metrics.left_patients - before_left
         wait_penalty = self._state.metrics.total_wait_time_quanta - before_wait_time
 
         all_patients_arrived = self._next_patient_index >= len(self._flatten_arrivals())

@@ -248,6 +248,7 @@ class OperatingRoomResource(State):
 class HospitalMetrics(State):
     treated_patients: int = 0
     discharged_patients: int = 0
+    left_patients: int = 0
     deceased_patients: int = 0
     total_wait_time_quanta: int = 0
 
@@ -262,6 +263,7 @@ class HospitalState(State):
     waiting_patients: List[Patient] = []
     active_patients: List[Patient] = []
     discharged_patients: List[Patient] = []
+    left_patients: List[Patient] = []
     deceased_patients: List[Patient] = []
 
     doctors: List[DoctorResource] = []
