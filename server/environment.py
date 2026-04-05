@@ -137,7 +137,9 @@ class HospitalEnvironment(Environment):
             severity = self._rng.choices(severities, weights = severity_weights, k = 1)[0]
             # k = 1 => pick 1 element (returns single element list) thus pick the first element from that list
 
-            required_scanner = self._rng.choice([None, ScannerType.XRAY, ScannerType.CT, ScannerType.MRI])
+            required_scanner = None
+            if self._rng.random() < severity.scanner_probability:
+                required_scanner = self._rng.choice([ScannerType.XRAY, ScannerType.CT, ScannerType.MRI])
             
             operation_type = None
             operation_duration_quanta = 0
@@ -185,7 +187,14 @@ class HospitalEnvironment(Environment):
     def _move_to_waiting(self, quantum: int) -> None:
         new_patients = self._scheduled_arrivals.get(quantum, [])
         if new_patients:
-            self._state.waiting_patients.extend(new_patients)
+            current_total = len(self._state.waiting_patients) + len(self._state.active_patients)
+            for patient in new_patients:
+                if current_total < self._state.max_total_capacity:
+                    self._state.waiting_patients.append(patient)
+                    current_total += 1
+                else:
+                    self._state.overflow_patients.append(patient)
+                    self._state.metrics.overflow_patients += 1
             self._next_patient_index += len(new_patients)
 
     def _resource_free(self, busy_until_quantum: int) -> bool:
@@ -362,6 +371,7 @@ class HospitalEnvironment(Environment):
 
             if self._patient_died(patient):
                 self._state.deceased_patients.append(patient)
+                self._state.metrics.deceased_patients += 1
             elif self._patient_left(patient):
                 self._state.left_patients.append(patient)
                 self._state.metrics.left_patients += 1
@@ -384,13 +394,13 @@ class HospitalEnvironment(Environment):
                 self._release_patient_resources(patient.patient_id)
             elif self._patient_died(patient):
                 self._state.deceased_patients.append(patient)
+                self._state.metrics.deceased_patients += 1
                 self._release_patient_resources(patient.patient_id)
             else:
                 remaining_active.append(patient)
 
         self._state.active_patients = remaining_active
         self._state.metrics.discharged_patients += discharges
-        self._state.metrics.deceased_patients = len(self._state.deceased_patients)
         return discharges
 
     def _release_resources(self, current_quantum: int) -> None:
@@ -430,8 +440,8 @@ class HospitalEnvironment(Environment):
     # noinspection PyUnusedLocal
     def step(self, action: HospitalAction, **kwargs) -> HospitalObservation:
         current_quantum = self._state.current_quantum
-        before_deceased = len(self._state.deceased_patients)
-        before_discharged = len(self._state.discharged_patients)
+        before_deceased = self._state.metrics.deceased_patients
+        before_discharged = self._state.metrics.discharged_patients
         before_left = self._state.metrics.left_patients
         before_wait_time = self._state.metrics.total_wait_time_quanta
 
@@ -453,8 +463,8 @@ class HospitalEnvironment(Environment):
             if quantum_index < quanta_to_advance - 1:
                 self._move_to_waiting(self._state.current_quantum)
 
-        deaths_this_step = len(self._state.deceased_patients) - before_deceased
-        discharges_this_step = len(self._state.discharged_patients) - before_discharged
+        deaths_this_step = self._state.metrics.deceased_patients - before_deceased
+        discharges_this_step = self._state.metrics.discharged_patients - before_discharged
         left_this_step = self._state.metrics.left_patients - before_left
         wait_penalty = self._state.metrics.total_wait_time_quanta - before_wait_time
 

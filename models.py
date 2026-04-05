@@ -7,6 +7,7 @@ TIME_QUANTUM_MINUTES = 15
 TIME_QUANTA_PER_HOUR = 60 // TIME_QUANTUM_MINUTES
 QUANTA_PER_STEP = 2
 CRITICAL_LIMIT = 10
+MAX_HOSPITAL_CAPACITY = 30
 
 
 def quanta_from_hours(hours: int) -> int:
@@ -171,6 +172,15 @@ class Severity(StrEnum):
         }[self]
 
     @property
+    def scanner_probability(self) -> float:
+        return {
+            Severity.LOW: 0.0,
+            Severity.MEDIUM: 0.10,
+            Severity.HIGH: 0.50,
+            Severity.CRITICAL: 1.0
+        }[self]
+
+    @property
     def base_treatment_quanta(self) -> int:
         return {
             Severity.LOW: quanta_from_minutes(15),
@@ -250,6 +260,7 @@ class HospitalMetrics(State):
     discharged_patients: int = 0
     left_patients: int = 0
     deceased_patients: int = 0
+    overflow_patients: int = 0
     total_wait_time_quanta: int = 0
 
 class HospitalState(State):
@@ -259,11 +270,13 @@ class HospitalState(State):
     time_quantum_minutes: int = TIME_QUANTUM_MINUTES
     time_quanta_per_hour: int = TIME_QUANTA_PER_HOUR
     quanta_per_step: int = QUANTA_PER_STEP
+    max_total_capacity: int = MAX_HOSPITAL_CAPACITY
 
     waiting_patients: List[Patient] = []
     active_patients: List[Patient] = []
     discharged_patients: List[Patient] = []
     left_patients: List[Patient] = []
+    overflow_patients: List[Patient] = []
     deceased_patients: List[Patient] = []
 
     doctors: List[DoctorResource] = []
