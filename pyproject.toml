@@ -1,16 +1,13 @@
 [project]
 name = "hospital-resource-env"
-version = "1.0.0"
-description = "Description of your agentic environment"
+version = "0.0.0"
+description = "Hospital emergency resource management environment"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "openenv-core",
     "fastapi>=0.104.0",
-    "pydantic>=2.0.0",
     "uvicorn>=0.24.0",
-    # Add your environment-specific heavy dependencies here
-    # e.g., "numpy", "torch", "smolagents"
 ]
 
 [project.optional-dependencies]
