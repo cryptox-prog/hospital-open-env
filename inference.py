@@ -9,19 +9,48 @@ from server.environment import HospitalEnvironment
 
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen3-8B-Instruct")
 
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME", "")
 BENCHMARK = os.getenv("HOSPITAL_BENCHMARK", "hospital-open-env")
 TASK_NAME = os.getenv("HOSPITAL_TASK")
 
-MAX_STEPS = 48
+MAX_STEPS = 96
 TEMPERATURE = 0.0
-MAX_TOKENS = 96
+MAX_TOKENS = 48
 
-TASK_ORDER: Sequence[str] = ("easy", "medium", "difficult")
+TASK_ORDER: Sequence[str] = (
+    "very_easy",
+    "easy",
+    "easy_medium",
+    "medium",
+    "medium_hard",
+    "hard",
+    "difficult",
+)
 
 TASK_CONFIGS = {
+
+    "very_easy": {
+        "doctors": {
+            "general": 6,
+            "er": 5,
+            "radiologist": 2,
+            "general_surgeon": 2,
+            "cardiothoracic_surgeon": 1,
+            "obstetric_surgeon": 1,
+        },
+        "nurses": {"general": 12, "er": 10, "or": 5},
+        "scanners": {"xray": 3, "ct": 2, "mri": 1},
+        "beds": {"general": 20, "er": 10},
+        "operating-rooms": 5,
+        "patients": {
+            "count": 20,
+            "arrival_spread": "uniform",
+            "severity_weights": {"low": 60, "medium": 30, "high": 8, "critical": 2},
+        },
+    },
+
     "easy": {
         "doctors": {
             "general": 5,
@@ -36,11 +65,32 @@ TASK_CONFIGS = {
         "beds": {"general": 18, "er": 8},
         "operating-rooms": 4,
         "patients": {
-            "count": 24,
+            "count": 26,
             "arrival_spread": "uniform",
-            "severity_weights": {"low": 45, "medium": 35, "high": 15, "critical": 5},
+            "severity_weights": {"low": 50, "medium": 30, "high": 15, "critical": 5},
         },
     },
+
+    "easy_medium": {
+        "doctors": {
+            "general": 5,
+            "er": 3,
+            "radiologist": 2,
+            "general_surgeon": 2,
+            "cardiothoracic_surgeon": 1,
+            "obstetric_surgeon": 1,
+        },
+        "nurses": {"general": 9, "er": 7, "or": 3},
+        "scanners": {"xray": 2, "ct": 1, "mri": 1},
+        "beds": {"general": 16, "er": 7},
+        "operating-rooms": 3,
+        "patients": {
+            "count": 34,
+            "arrival_spread": "uniform",
+            "severity_weights": {"low": 40, "medium": 35, "high": 18, "critical": 7},
+        },
+    },
+
     "medium": {
         "doctors": {
             "general": 4,
@@ -60,6 +110,47 @@ TASK_CONFIGS = {
             "severity_weights": {"low": 25, "medium": 35, "high": 25, "critical": 15},
         },
     },
+
+    "medium_hard": {
+        "doctors": {
+            "general": 4,
+            "er": 2,
+            "radiologist": 1,
+            "general_surgeon": 2,
+            "cardiothoracic_surgeon": 1,
+            "obstetric_surgeon": 1,
+        },
+        "nurses": {"general": 7, "er": 5, "or": 3},
+        "scanners": {"xray": 1, "ct": 1, "mri": 1},
+        "beds": {"general": 12, "er": 5},
+        "operating-rooms": 3,
+        "patients": {
+            "count": 50,
+            "arrival_spread": "peak_hours",
+            "severity_weights": {"low": 20, "medium": 30, "high": 30, "critical": 20},
+        },
+    },
+
+    "hard": {
+        "doctors": {
+            "general": 3,
+            "er": 2,
+            "radiologist": 1,
+            "general_surgeon": 1,
+            "cardiothoracic_surgeon": 1,
+            "obstetric_surgeon": 1,
+        },
+        "nurses": {"general": 6, "er": 5, "or": 2},
+        "scanners": {"xray": 1, "ct": 1, "mri": 1},
+        "beds": {"general": 11, "er": 5},
+        "operating-rooms": 2,
+        "patients": {
+            "count": 58,
+            "arrival_spread": "front_loaded",
+            "severity_weights": {"low": 15, "medium": 25, "high": 35, "critical": 25},
+        },
+    },
+
     "difficult": {
         "doctors": {
             "general": 3,
@@ -89,9 +180,10 @@ SEVERITY_ORDER = {
 }
 
 SYSTEM_PROMPT = (
-    "You are planning hospital resource allocation. Return only a short JSON array of patient ids "
-    "ordered by priority or an empty array if no ordering is needed. "
-    "Prioritize critical and high severity patients with higher condition scores first."
+    "You are planning hospital resource allocation. "
+    "Return only a JSON array of patient ids in priority order. "
+    "Prioritize: CRITICAL > HIGH > MEDIUM > LOW, "
+    "then higher condition score, then longest waiting time."
 )
 
 
@@ -182,7 +274,7 @@ def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
 
     # dont take too many patients for 1 prompt current limit 10
     # TODO: should this be limited ???
-    candidates = state.waiting_patients[: min(10, len(state.waiting_patients))]
+    candidates = heuristic_order[: min(10, len(heuristic_order))]
     if not candidates:
         return heuristic_order
 
