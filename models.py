@@ -64,11 +64,11 @@ class OperationType(StrEnum):
     @property
     def base_duration_quanta(self) -> int:
         return {
-            OperationType.APPENDECTOMY: quanta_from_hours(1),
-            OperationType.C_SECTION: quanta_from_hours(1),
-            OperationType.DEBRIDEMENT: quanta_from_hours(2),
-            OperationType.LAPAROTOMY: quanta_from_hours(4),
-            OperationType.CABG: quanta_from_hours(5),
+            OperationType.APPENDECTOMY: quanta_from_minutes(30),
+            OperationType.C_SECTION: quanta_from_minutes(30),
+            OperationType.DEBRIDEMENT: quanta_from_hours(1),
+            OperationType.LAPAROTOMY: quanta_from_hours(2),
+            OperationType.CABG: quanta_from_hours(2.5),
         }[self]
         
     @property
@@ -129,7 +129,7 @@ class Severity(StrEnum):
             Severity.LOW: quanta_from_hours(4),
             Severity.MEDIUM: quanta_from_hours(3),
             Severity.HIGH: quanta_from_hours(2),
-            Severity.CRITICAL: quanta_from_hours(2),
+            Severity.CRITICAL: quanta_from_hours(1),
         }[self]
 
     @property
@@ -184,9 +184,9 @@ class Severity(StrEnum):
     def base_treatment_quanta(self) -> int:
         return {
             Severity.LOW: quanta_from_minutes(15),
-            Severity.MEDIUM: quanta_from_hours(1),
-            Severity.HIGH: quanta_from_hours(2),
-            Severity.CRITICAL: quanta_from_hours(3),
+            Severity.MEDIUM: quanta_from_minutes(30),
+            Severity.HIGH: quanta_from_hours(1),
+            Severity.CRITICAL: quanta_from_hours(1.5),
         }[self]
 
 # --------------------------------------------------------------------------------
