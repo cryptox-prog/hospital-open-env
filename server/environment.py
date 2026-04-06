@@ -9,6 +9,16 @@ from models import (HospitalState, HospitalObservation, DoctorResource,
                      BedResource, BedType, OperatingRoomResource, Severity, Patient,
                      HospitalAction, HospitalMetrics, CRITICAL_LIMIT)
 
+import logging
+
+logging.basicConfig(
+    filename="hospital_log.txt",
+    level=logging.INFO,
+    format="%(asctime)s - %(message)s"
+)
+
+logger = logging.getLogger(__name__)
+
 class HospitalEnvironment(Environment):
     SUPPORTS_CONCURRENT_SESSIONS = True
 
@@ -186,16 +196,30 @@ class HospitalEnvironment(Environment):
 
     def _move_to_waiting(self, quantum: int) -> None:
         new_patients = self._scheduled_arrivals.get(quantum, [])
+        arrived = []
+        overflowed = []
         if new_patients:
             current_total = len(self._state.waiting_patients) + len(self._state.active_patients)
             for patient in new_patients:
                 if current_total < self._state.max_total_capacity:
                     self._state.waiting_patients.append(patient)
+                    arrived.append(patient)
                     current_total += 1
                 else:
                     self._state.overflow_patients.append(patient)
+                    overflowed.append(patient)
                     self._state.metrics.overflow_patients += 1
             self._next_patient_index += len(new_patients)
+        if arrived:
+            logger.info(
+                f"Quantum {quantum} | Arrived: "
+                f"{[(p.id, p.severity) for p in arrived]}"
+            )
+        if overflowed:
+            logger.info(
+                f"Quantum {quantum} | Overflow: "
+                f"{[(p.id, p.severity) for p in overflowed]}"
+            )
 
     def _resource_free(self, busy_until_quantum: int) -> bool:
         return busy_until_quantum <= self._state.current_quantum
