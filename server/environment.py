@@ -267,13 +267,13 @@ class HospitalEnvironment(Environment):
         for patient in self._state.waiting_patients:
             hours_waited = patient.waited_quanta / self._state.time_quanta_per_hour
             if patient.severity == Severity.CRITICAL:
-                penalty += 0.05 * hours_waited
-            elif patient.severity == Severity.HIGH:
-                penalty += 0.03 * hours_waited
-            elif patient.severity == Severity.MEDIUM:
-                penalty += 0.015 * hours_waited
-            else:
                 penalty += 0.005 * hours_waited
+            elif patient.severity == Severity.HIGH:
+                penalty += 0.003 * hours_waited
+            elif patient.severity == Severity.MEDIUM:
+                penalty += 0.0015 * hours_waited
+            else:
+                penalty += 0.0005 * hours_waited
         return penalty
 
     def _observation(self, done: bool = False, reward: Optional[float] = None, message: str = "") -> HospitalObservation:
@@ -534,14 +534,14 @@ class HospitalEnvironment(Environment):
         )
 
         reward = (
-            critical_discharges_this_step * 10.0
-            + high_discharges_this_step * 6.0
-            + med_discharges_this_step * 3.0
-            + low_discharges_this_step * 1.0
-            - deaths_this_step * 20.0
+            critical_discharges_this_step * 0.15
+            + high_discharges_this_step * 0.09
+            + med_discharges_this_step * 0.03
+            + low_discharges_this_step * 0.01
+            - deaths_this_step * 0.25
             - self._severity_wait_penalty()
-            - denied_admission_this_step * 2.0
-            - left_this_step * 4.0
+            - denied_admission_this_step * 0.02
+            - left_this_step * 0.04
         )
 
         return self._observation(done=done, reward=reward, message=self._status_message(critical_discharges_this_step + high_discharges_this_step + med_discharges_this_step + low_discharges_this_step, deaths_this_step, done))
