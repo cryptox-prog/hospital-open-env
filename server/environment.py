@@ -213,7 +213,7 @@ class HospitalEnvironment(Environment):
         if arrived:
             logger.info(
                 f"Quantum {quantum} | Arrived: "
-                f"{[(p.id, p.severity) for p in arrived]}"
+                f"{[(p.patient_id, p.severity) for p in arrived]}"
             )
         if overflowed:
             logger.info(
@@ -259,8 +259,22 @@ class HospitalEnvironment(Environment):
     def _hourly_rate_per_quantum(self, hourly_rate: float) -> float:
         return hourly_rate / self._state.time_quanta_per_hour
 
-    def _wait_penalty_to_reward(self, wait_penalty_quanta: int) -> float:
-        return 0.1 * (wait_penalty_quanta / self._state.time_quanta_per_hour)
+    #def _wait_penalty_to_reward(self, wait_penalty_quanta: int) -> float:
+    #    return 0.1 * (wait_penalty_quanta / self._state.time_quanta_per_hour)
+    
+    def _severity_wait_penalty(self) -> float:
+        penalty = 0.0
+        for patient in self._state.waiting_patients:
+            hours_waited = patient.waited_quanta / self._state.time_quanta_per_hour
+            if patient.severity == Severity.CRITICAL:
+                penalty += 2.0 * hours_waited
+            elif patient.severity == Severity.HIGH:
+                penalty += 1.0 * hours_waited
+            elif patient.severity == Severity.MEDIUM:
+                penalty += 0.5 * hours_waited
+            else:
+                penalty += 0.2 * hours_waited
+        return penalty
 
     def _observation(self, done: bool = False, reward: Optional[float] = None, message: str = "") -> HospitalObservation:
         free_resources = {
@@ -519,8 +533,16 @@ class HospitalEnvironment(Environment):
             all_patients_arrived
         )
 
-        reward = critical_discharges_this_step * 5.0 + high_discharges_this_step * 3.0 + med_discharges_this_step * 2.0 + low_discharges_this_step * 1.0 - deaths_this_step * 8.0 - self._wait_penalty_to_reward(wait_penalty) - denied_admission_this_step * 0.5 - left_this_step * 1.0
-        self._state.metrics.objective_score += reward
+        reward = (
+            critical_discharges_this_step * 10.0
+            + high_discharges_this_step * 6.0
+            + med_discharges_this_step * 3.0
+            + low_discharges_this_step * 1.0
+            - deaths_this_step * 50.0
+            - self._severity_wait_penalty()
+            - denied_admission_this_step * 2.0
+            - left_this_step * 4.0
+        )
 
         return self._observation(done=done, reward=reward, message=self._status_message(critical_discharges_this_step + high_discharges_this_step + med_discharges_this_step + low_discharges_this_step, deaths_this_step, done))
 
