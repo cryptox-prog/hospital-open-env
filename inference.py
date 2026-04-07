@@ -29,6 +29,16 @@ TASK_ORDER: Sequence[str] = (
     "difficult",
 )
 
+TASK_SUCCESS_THRESHOLDS = {
+    "very_easy": 0.20,
+    "easy": 0.25,
+    "easy_medium": 0.30,
+    "medium": 0.35,
+    "medium_hard": 0.40,
+    "hard": 0.45,
+    "difficult": 0.50,
+}
+
 TASK_CONFIGS = {
 
     "very_easy": {
@@ -406,7 +416,6 @@ def run_task(task_name: str, client: Optional[OpenAI]) -> None:
 
         for step in range(1, MAX_STEPS + 1):
             if bool(result.done):
-                success = True
                 break
 
             action, action_label = build_action(env.state, client)
@@ -418,7 +427,6 @@ def run_task(task_name: str, client: Optional[OpenAI]) -> None:
                 rewards.append(reward)
                 steps_taken = step
                 log_step(step=step, action=action_label, reward=reward, done=done, error=None)
-                success = done
             except Exception as exc:
                 log_step(step=step, action=action_label, reward=0.0, done=True, error=str(exc))
                 success = False
@@ -428,11 +436,14 @@ def run_task(task_name: str, client: Optional[OpenAI]) -> None:
                 break
 
         score = sum(rewards)
+        score = min(max(score, 0.0), 1.0)
+        success_threshold = TASK_SUCCESS_THRESHOLDS.get(task_name, 1.0)
+        success = score >= success_threshold
     finally:
         try:
             env.close()
         finally:
-            log_end(success=success, steps=steps_taken, score = score, rewards=rewards)
+            log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
 
 if __name__ == "__main__":
