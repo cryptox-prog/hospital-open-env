@@ -105,7 +105,7 @@ TASK_CONFIGS = {
     "medium_hard": {
         "patients": {
             "count": 50,
-            "arrival_spread": "peak_hours",
+            "arrival_spread": "front_loaded",
             "severity_weights": {"low": 22, "medium": 33, "high": 27, "critical": 18}
         }
     },
@@ -121,7 +121,7 @@ TASK_CONFIGS = {
     "difficult": {
         "patients": {
             "count": 66,
-            "arrival_spread": "front_loaded",
+            "arrival_spread": "back_loaded",
             "severity_weights": {"low": 10, "medium": 25, "high": 35, "critical": 30}
         }
     },
