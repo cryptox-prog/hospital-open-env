@@ -17,3 +17,28 @@ At times of great emergency like natural disasters, stampedes, and pandemics, ho
 
 ## Environment 
 smth smth
+
+## Development 
+Sample Env
+```conf
+HF_TOKEN=hf_***
+API_KEY=hf_***
+
+LOCAL_IMAGE_NAME=hospital-open-env:latest
+
+API_BASE_URL=https://router.huggingface.co/v1
+MODEL_NAME=Qwen/Qwen3-8B-Instruct
+
+HOSPITAL_TASK=all
+MY_ENV_V4_BENCHMARK=1
+```
+
+Docker build
+```shell
+docker build -t hospital-open-env:local -f server/Dockerfile .
+```
+
+Run
+```shell
+python inference.py
+```
