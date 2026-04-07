@@ -1,3 +1,8 @@
-name: "hospital-resource-env"
-version: "0.0.0"
-description: "Hospital resource management environment under emergency conditions."
+spec_version: 1
+name: hospital-resource-env
+version: 0.0.0
+description: Hospital resource management environment under emergency conditions.
+type: space
+runtime: fastapi
+app: server.app:app
+port: 8000
