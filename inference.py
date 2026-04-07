@@ -1,17 +1,17 @@
+import asyncio
 import json
 import os
 from typing import List, Optional, Sequence
-
 from openai import OpenAI
-
+from client import HospitalEnv
 from models import HospitalAction, Patient, ResourceAssignment, Severity
-from server.environment import HospitalEnvironment
 
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen3-8B-Instruct")
 
-LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME", "")
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME", "hospital-open-env:local")
+API_URL = os.getenv("HOSPITAL_API_URL", "")
 BENCHMARK = os.getenv("HOSPITAL_BENCHMARK", "hospital-open-env")
 TASK_NAME = os.getenv("HOSPITAL_TASK")
 
@@ -396,8 +396,7 @@ def build_action(state, client: Optional[OpenAI]) -> tuple[HospitalAction, str]:
     return HospitalAction(assignments=assignments), "||".join(action_parts)
 
 
-def run_task(task_name: str, client: Optional[OpenAI]) -> None:
-    env = HospitalEnvironment()
+async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -> None:
     rewards: List[float] = []
     steps_taken = 0
     score = 0.0
@@ -406,11 +405,12 @@ def run_task(task_name: str, client: Optional[OpenAI]) -> None:
     log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
 
     try:
-        result = env.reset(config=get_task_config(task_name), seed=42, episode_id=f"{task_name}-episode")
+        result = await env.reset(config=get_task_config(task_name), seed=42, episode_id=f"{task_name}-episode")
 
         if client is not None:
             try:
-                _ = choose_priority_order(client, env.state)
+                state = await env.state()
+                _ = choose_priority_order(client, state)
             except Exception:
                 pass
 
@@ -418,10 +418,11 @@ def run_task(task_name: str, client: Optional[OpenAI]) -> None:
             if bool(result.done):
                 break
 
-            action, action_label = build_action(env.state, client)
+            state = await env.state()
+            action, action_label = build_action(state, client)
 
             try:
-                result = env.step(action)
+                result = await env.step(action)
                 reward = float(result.reward or 0.0)
                 done = bool(result.done)
                 rewards.append(reward)
@@ -439,15 +440,31 @@ def run_task(task_name: str, client: Optional[OpenAI]) -> None:
         score = min(max(score, 0.0), 1.0)
         success_threshold = TASK_SUCCESS_THRESHOLDS.get(task_name, 1.0)
         success = score >= success_threshold
+    except Exception as exc:
+        log_step(step=0, action="", reward=0.0, done=True, error=str(exc))
+        success = False
+    finally:
+        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+
+
+async def main() -> None:
+    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY) if API_KEY else None
+    
+    if API_URL:
+        env = HospitalEnv.from_url(API_URL)
+    else:
+        env = await HospitalEnv.from_docker_image(LOCAL_IMAGE_NAME, timeout_s=120)
+    
+    try:
+        tasks = [TASK_NAME] if TASK_NAME and TASK_NAME in TASK_CONFIGS else list(TASK_ORDER)
+        for task_name in tasks:
+            await run_task(task_name, client, env)
     finally:
         try:
-            env.close()
-        finally:
-            log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+            await env.close()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY) if API_KEY else None
-    tasks = [TASK_NAME] if TASK_NAME in TASK_CONFIGS else list(TASK_ORDER)
-    for task_name in tasks:
-        run_task(task_name, client)
+    asyncio.run(main())
