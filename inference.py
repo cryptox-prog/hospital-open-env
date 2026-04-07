@@ -73,7 +73,7 @@ TASK_CONFIGS = {
     "very_easy": {
         "patients": {
             "count": 18,
-            "arrival_spread": "uniform",
+            "arrival_spread": "front_loaded",
             "severity_weights": {"low": 65, "medium": 25, "high": 8, "critical": 2}
         }
     },
@@ -81,7 +81,7 @@ TASK_CONFIGS = {
     "easy": {
         "patients": {
             "count": 26,
-            "arrival_spread": "uniform",
+            "arrival_spread": "front_loaded",
             "severity_weights": {"low": 50, "medium": 30, "high": 15, "critical": 5}
         }
     },
@@ -97,7 +97,7 @@ TASK_CONFIGS = {
     "medium": {
         "patients": {
             "count": 42,
-            "arrival_spread": "peak_hours",
+            "arrival_spread": "uniform",
             "severity_weights": {"low": 30, "medium": 35, "high": 23, "critical": 12}
         }
     },
@@ -105,7 +105,7 @@ TASK_CONFIGS = {
     "medium_hard": {
         "patients": {
             "count": 50,
-            "arrival_spread": "front_loaded",
+            "arrival_spread": "peak_hours",
             "severity_weights": {"low": 22, "medium": 33, "high": 27, "critical": 18}
         }
     },
@@ -113,7 +113,7 @@ TASK_CONFIGS = {
     "hard": {
         "patients": {
             "count": 58,
-            "arrival_spread": "front_loaded",
+            "arrival_spread": "peak_hours",
             "severity_weights": {"low": 15, "medium": 30, "high": 30, "critical": 25}
         }
     },
@@ -151,10 +151,10 @@ def log_start(task: str, env: str, model: str) -> None:
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
     error_val = error if error else "null"
     done_val = str(done).lower()
-    print(
+    """print(
         f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}",
         flush=True,
-    )
+    )"""
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
@@ -183,10 +183,10 @@ def free_resources_by_time(resources, current_quantum: int):
             free_resources.append(resource)
     return free_resources
 
-def free_beds_by_occupancy(beds):
+def free_beds_by_occupancy(beds, current_quantum: int):
     free_beds = []
     for bed in beds:
-        if bed.busy_until_quantum <= 0:
+        if bed.busy_until_quantum <= current_quantum:
             free_beds.append(bed)
     return free_beds
 
@@ -294,7 +294,7 @@ def build_action(state, client: Optional[OpenAI]) -> tuple[HospitalAction, str]:
     available_doctors = free_resources_by_time(state.doctors, state.current_quantum)
     available_nurses = free_resources_by_time(state.nurses, state.current_quantum)
     available_scanners = free_resources_by_time(state.scanners, state.current_quantum)
-    available_beds = free_beds_by_occupancy(state.beds)
+    available_beds = free_beds_by_occupancy(state.beds, state.current_quantum)
     available_rooms = free_resources_by_time(state.operating_rooms, state.current_quantum)
 
     assignments: List[ResourceAssignment] = []
@@ -382,7 +382,7 @@ async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -
             if done:
                 break
 
-        score = sum(rewards)
+        score = sum(rewards)/1000
         # TODO: Uncomment clamping
         # score = min(max(score, 0.0), 1.0)
         success_threshold = TASK_SUCCESS_THRESHOLDS.get(task_name, 1.0)
