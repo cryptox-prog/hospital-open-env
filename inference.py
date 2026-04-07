@@ -30,155 +30,100 @@ TASK_ORDER: Sequence[str] = (
 )
 
 TASK_SUCCESS_THRESHOLDS = {
-    "very_easy": 0.20,
-    "easy": 0.25,
-    "easy_medium": 0.30,
-    "medium": 0.35,
-    "medium_hard": 0.40,
-    "hard": 0.45,
-    "difficult": 0.50,
+    "very_easy": 0.62,
+    "easy": 0.58,
+    "easy_medium": 0.54,
+    "medium": 0.50,
+    "medium_hard": 0.46,
+    "hard": 0.42,
+    "difficult": 0.38,
 }
 
+BASE_RESOURCE_CONFIG = {
+    "doctors": {
+        "general": 4,
+        "er": 3,
+        "radiologist": 2,
+        "general_surgeon": 2,
+        "cardiothoracic_surgeon": 1,
+        "obstetric_surgeon": 1,
+    },
+
+    "nurses": {
+        "general": 8,
+        "er": 6,
+        "or": 3
+    },
+
+    "scanners": {
+        "xray": 2,
+        "ct": 1,
+        "mri": 1
+    },
+
+    "beds": {
+        "general": 16,
+        "er": 6
+    },
+
+    "operating-rooms": 3
+}
 TASK_CONFIGS = {
 
     "very_easy": {
-        "doctors": {
-            "general": 6,
-            "er": 5,
-            "radiologist": 2,
-            "general_surgeon": 2,
-            "cardiothoracic_surgeon": 1,
-            "obstetric_surgeon": 1,
-        },
-        "nurses": {"general": 12, "er": 10, "or": 5},
-        "scanners": {"xray": 3, "ct": 2, "mri": 1},
-        "beds": {"general": 20, "er": 10},
-        "operating-rooms": 5,
         "patients": {
-            "count": 20,
+            "count": 18,
             "arrival_spread": "uniform",
-            "severity_weights": {"low": 60, "medium": 30, "high": 8, "critical": 2},
-        },
+            "severity_weights": {"low": 65, "medium": 25, "high": 8, "critical": 2}
+        }
     },
 
     "easy": {
-        "doctors": {
-            "general": 5,
-            "er": 4,
-            "radiologist": 2,
-            "general_surgeon": 2,
-            "cardiothoracic_surgeon": 1,
-            "obstetric_surgeon": 1,
-        },
-        "nurses": {"general": 10, "er": 8, "or": 4},
-        "scanners": {"xray": 2, "ct": 2, "mri": 1},
-        "beds": {"general": 18, "er": 8},
-        "operating-rooms": 4,
         "patients": {
             "count": 26,
             "arrival_spread": "uniform",
-            "severity_weights": {"low": 50, "medium": 30, "high": 15, "critical": 5},
-        },
+            "severity_weights": {"low": 50, "medium": 30, "high": 15, "critical": 5}
+        }
     },
 
     "easy_medium": {
-        "doctors": {
-            "general": 5,
-            "er": 3,
-            "radiologist": 2,
-            "general_surgeon": 2,
-            "cardiothoracic_surgeon": 1,
-            "obstetric_surgeon": 1,
-        },
-        "nurses": {"general": 9, "er": 7, "or": 3},
-        "scanners": {"xray": 2, "ct": 1, "mri": 1},
-        "beds": {"general": 16, "er": 7},
-        "operating-rooms": 3,
         "patients": {
             "count": 34,
             "arrival_spread": "uniform",
-            "severity_weights": {"low": 40, "medium": 35, "high": 18, "critical": 7},
-        },
+            "severity_weights": {"low": 40, "medium": 35, "high": 18, "critical": 7}
+        }
     },
 
     "medium": {
-        "doctors": {
-            "general": 4,
-            "er": 3,
-            "radiologist": 1,
-            "general_surgeon": 2,
-            "cardiothoracic_surgeon": 1,
-            "obstetric_surgeon": 1,
-        },
-        "nurses": {"general": 8, "er": 6, "or": 3},
-        "scanners": {"xray": 2, "ct": 1, "mri": 1},
-        "beds": {"general": 14, "er": 6},
-        "operating-rooms": 3,
         "patients": {
             "count": 42,
             "arrival_spread": "peak_hours",
-            "severity_weights": {"low": 25, "medium": 35, "high": 25, "critical": 15},
-        },
+            "severity_weights": {"low": 30, "medium": 35, "high": 23, "critical": 12}
+        }
     },
 
     "medium_hard": {
-        "doctors": {
-            "general": 4,
-            "er": 2,
-            "radiologist": 1,
-            "general_surgeon": 2,
-            "cardiothoracic_surgeon": 1,
-            "obstetric_surgeon": 1,
-        },
-        "nurses": {"general": 7, "er": 5, "or": 3},
-        "scanners": {"xray": 1, "ct": 1, "mri": 1},
-        "beds": {"general": 12, "er": 5},
-        "operating-rooms": 3,
         "patients": {
             "count": 50,
             "arrival_spread": "peak_hours",
-            "severity_weights": {"low": 20, "medium": 30, "high": 30, "critical": 20},
-        },
+            "severity_weights": {"low": 22, "medium": 33, "high": 27, "critical": 18}
+        }
     },
 
     "hard": {
-        "doctors": {
-            "general": 3,
-            "er": 2,
-            "radiologist": 1,
-            "general_surgeon": 1,
-            "cardiothoracic_surgeon": 1,
-            "obstetric_surgeon": 1,
-        },
-        "nurses": {"general": 6, "er": 5, "or": 2},
-        "scanners": {"xray": 1, "ct": 1, "mri": 1},
-        "beds": {"general": 11, "er": 5},
-        "operating-rooms": 2,
         "patients": {
             "count": 58,
             "arrival_spread": "front_loaded",
-            "severity_weights": {"low": 15, "medium": 25, "high": 35, "critical": 25},
-        },
+            "severity_weights": {"low": 15, "medium": 30, "high": 30, "critical": 25}
+        }
     },
 
     "difficult": {
-        "doctors": {
-            "general": 3,
-            "er": 2,
-            "radiologist": 1,
-            "general_surgeon": 1,
-            "cardiothoracic_surgeon": 1,
-            "obstetric_surgeon": 1,
-        },
-        "nurses": {"general": 6, "er": 4, "or": 2},
-        "scanners": {"xray": 1, "ct": 1, "mri": 1},
-        "beds": {"general": 10, "er": 4},
-        "operating-rooms": 2,
         "patients": {
-            "count": 64,
+            "count": 66,
             "arrival_spread": "front_loaded",
-            "severity_weights": {"low": 10, "medium": 25, "high": 35, "critical": 30},
-        },
+            "severity_weights": {"low": 10, "medium": 25, "high": 35, "critical": 30}
+        }
     },
 }
 
@@ -221,7 +166,8 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
 # Tasks Helprer Functions
 # --------------------------------------------------------------------------------
 def get_task_config(task_name: str) -> dict:
-    return TASK_CONFIGS.get(task_name, TASK_CONFIGS["easy"])
+    task = TASK_CONFIGS.get(task_name, TASK_CONFIGS["easy"])
+    return {**BASE_RESOURCE_CONFIG, "patients": task["patients"]}
 
 def is_task_enabled(task_name: str) -> bool:
     return TASK_NAME is None or TASK_NAME == task_name or TASK_NAME == "all"
