@@ -1,5 +1,7 @@
 .idea/
 .vscode/
 __pycache__/
+venv/
+.venv/
 .env
 hospital_log.txt
