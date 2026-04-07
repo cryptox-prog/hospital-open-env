@@ -8,7 +8,7 @@ class HospitalEnv(EnvClient[HospitalAction, HospitalObservation, HospitalState])
 	
 	def _step_payload(self, action: HospitalAction) -> dict:
 	    # Converts HospitalAction to json for web transfer
-		return {"assignments": action.assignments}
+		return {"assignments": [a.model_dump() for a in action.assignments]}
 
 
 	def _parse_result(self, payload: dict) -> StepResult:
