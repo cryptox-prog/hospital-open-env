@@ -24,7 +24,14 @@ class HospitalEnvironment(Environment):
 
     def __init__(self):
         self._rng = random.Random()
-        self._state = None
+        self._state = HospitalState(
+            episode_id=str(uuid.uuid4()),
+            doctors=[],
+            nurses=[],
+            scanners=[],
+            beds=[],
+            operating_rooms=[],
+        )
         self._scheduled_arrivals: Dict[int, List[Patient]] = {}
         self._next_patient_index = 0
 
