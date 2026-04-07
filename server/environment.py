@@ -239,7 +239,7 @@ class HospitalEnvironment(Environment):
                 if r.resource_type != resource_type:
                     continue
                 if isinstance(r, BedResource):
-                    if r.occupied_by_patient_id is None:
+                    if r.busy_until_quantum <= 0:
                         count += 1
                 elif self._resource_free(r.busy_until_quantum):
                     count += 1
@@ -333,7 +333,7 @@ class HospitalEnvironment(Environment):
         if not bed_id:
             return None
         bed = next((b for b in self._state.beds if b.resource_id == bed_id), None)
-        if bed and bed.resource_type == required_type and bed.occupied_by_patient_id is None:
+        if bed and bed.resource_type == required_type and bed.busy_until_quantum <= 0:
             return bed
         return None
     
@@ -373,6 +373,7 @@ class HospitalEnvironment(Environment):
             for nurse in nurses:
                 nurse.busy_until_quantum = self._state.current_quantum + patient.treatment_quanta
             bed.occupied_by_patient_id = patient.patient_id
+            bed.busy_until_quantum = patient.treatment_quanta
             
             if scanner is not None:
                 scanner.busy_until_quantum = self._state.current_quantum + 1
@@ -385,6 +386,7 @@ class HospitalEnvironment(Environment):
         for bed in self._state.beds:
             if bed.occupied_by_patient_id == patient_id:
                 bed.occupied_by_patient_id = None
+                bed.busy_until_quantum = 0
 
     @staticmethod
     def _patient_died(patient: Patient) -> bool:
@@ -437,7 +439,9 @@ class HospitalEnvironment(Environment):
             quanta_elapsed = self._state.current_quantum - patient.treatment_started_quantum
             patient.condition_score = max(0.0, patient.condition_score - self._hourly_rate_per_quantum(patient.severity.recovery_rate))
 
-            if quanta_elapsed >= patient.treatment_quanta:
+            # Find the bed for this patient
+            bed = next((b for b in self._state.beds if b.occupied_by_patient_id == patient.patient_id), None)
+            if bed and bed.busy_until_quantum <= 0:
                 patient.is_stable = True
                 self._state.discharged_patients.append(patient)
                 discharges += 1
@@ -459,6 +463,11 @@ class HospitalEnvironment(Environment):
 
         self._state.active_patients = remaining_active
         return discharges
+
+    def _decrement_bed_times(self) -> None:
+        for bed in self._state.beds:
+            if bed.busy_until_quantum > 0:
+                bed.busy_until_quantum -= 1
 
     def _release_resources(self, current_quantum: int) -> None:
         for doctor in self._state.doctors:
@@ -516,6 +525,7 @@ class HospitalEnvironment(Environment):
 
         for quantum_index in range(quanta_to_advance):
             self._advance_waiting_patients()
+            self._decrement_bed_times()
             self._advance_active_patients()
 
             self._state.current_quantum += 1

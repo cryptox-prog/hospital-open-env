@@ -240,6 +240,7 @@ class BedResource(State):
     resource_id: str
     resource_type: BedType
     occupied_by_patient_id: Optional[str] = None
+    busy_until_quantum: int = 0
 
 class BloodResource(State):
     resource_id: str

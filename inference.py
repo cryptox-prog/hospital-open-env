@@ -240,7 +240,7 @@ def free_resources_by_time(resources, current_quantum: int):
 def free_beds_by_occupancy(beds):
     free_beds = []
     for bed in beds:
-        if bed.occupied_by_patient_id is None:
+        if bed.remaining_time <= 0:
             free_beds.append(bed)
     return free_beds
 
