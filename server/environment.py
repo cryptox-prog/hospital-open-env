@@ -169,6 +169,7 @@ class HospitalEnvironment(Environment):
                 operation_type = self._rng.choices(operation_choices, weights=weights, k=1)[0]
                 operation_duration_quanta = operation_type.base_duration_quanta
 
+
             if self._rng.random() < severity.oxygen_probability:
                 required_oxygen = True
 
@@ -179,6 +180,12 @@ class HospitalEnvironment(Environment):
                     required_blood_units = self._rng.randint(1, 2)
                 else:
                     required_blood_units = self._rng.randint(2, 4)
+
+            required_nurse_type = severity.required_nurse
+            required_nurses = severity.required_nurses_count
+            if operation_type:
+                required_nurse_type = NurseType.OR
+                required_nurses = 1
                     
             patient = Patient(
                 patient_id = f"patient-{i + 1}",
@@ -188,8 +195,8 @@ class HospitalEnvironment(Environment):
                 max_wait_quanta = severity.max_wait_quanta,
                 waited_quanta = 0,
                 required_doctor = operation_type.required_surgeon if operation_type else severity.required_doctor,
-                required_nurse_type = severity.required_nurse,
-                required_nurses = severity.required_nurses_count,
+                required_nurse_type = required_nurse_type,
+                required_nurses = required_nurses,
                 required_bed_type = severity.required_bed,
                 required_scanner = required_scanner,
                 operation_type = operation_type,
