@@ -107,7 +107,7 @@ class HospitalEnvironment(Environment):
                 arrival_quantum = self._rng.choices(
                     arrival_quanta,
                     weights = [
-                        3 if (quantum // self._state.time_quanta_per_hour) in (8, 9, 10, 17, 18, 19) else 1
+                        3 if (quantum // self._state.time_quanta_per_hour) in (4, 8, 12, 16) else 1
                         for quantum in arrival_quanta
                     ],
                     k = 1
@@ -557,7 +557,7 @@ class HospitalEnvironment(Environment):
             all_patients_arrived
         )
 
-        reward = (
+        reward = ((
             critical_discharges_this_step * 0.15
             + high_discharges_this_step * 0.09
             + med_discharges_this_step * 0.03
@@ -566,7 +566,7 @@ class HospitalEnvironment(Environment):
             - self._severity_wait_penalty()
             - denied_admission_this_step * 0.02
             - left_this_step * 0.04
-        )
+        )/len(self._flatten_arrivals()))*10000
 
         return self._observation(done=done, reward=reward, message=self._status_message(critical_discharges_this_step + high_discharges_this_step + med_discharges_this_step + low_discharges_this_step, deaths_this_step, done))
 
