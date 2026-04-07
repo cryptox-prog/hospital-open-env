@@ -112,7 +112,7 @@ class Severity(StrEnum):
             Severity.LOW: NurseType.GENERAL,
             Severity.MEDIUM: NurseType.GENERAL,
             Severity.HIGH: NurseType.ER,
-            Severity.CRITICAL: NurseType.OR,
+            Severity.CRITICAL: NurseType.ER,
         }[self]
 
     @property
@@ -150,7 +150,7 @@ class Severity(StrEnum):
             Severity.LOW: 0.0,
             Severity.MEDIUM: 0.0,
             Severity.HIGH: 0.35,
-            Severity.CRITICAL: 0.90,
+            Severity.CRITICAL: 0.75,
         }[self]
 
     @property
