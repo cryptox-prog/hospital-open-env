@@ -398,7 +398,8 @@ async def main() -> None:
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY) if API_KEY else None
     
     if API_URL:
-        env = HospitalEnv.from_url(API_URL)
+        env = HospitalEnv(API_URL)
+        await env.connect()
     else:
         env = await HospitalEnv.from_docker_image(LOCAL_IMAGE_NAME, timeout_s=120)
     
