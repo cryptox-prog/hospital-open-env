@@ -138,6 +138,12 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
     print(f"[END]   success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}", flush=True)
 
 
+def log_task_failure(task_name: str, error: str) -> None:
+    log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
+    log_step(step=0, action="", reward=0.0, done=True, error=error)
+    log_end(success=False, steps=0, score=0.0, rewards=[])
+
+
 
 # --------------------------------------------------------------------------------
 # Tasks Helprer Functions
@@ -370,18 +376,36 @@ async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -
 
 
 async def main() -> None:
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY) if API_KEY else None
-    
-    if API_URL:
-        env = HospitalEnv(API_URL)
-        await env.connect()
-    else:
-        env = await HospitalEnv.from_docker_image(LOCAL_IMAGE_NAME, timeout_s=120)
-    
+    tasks = [TASK_NAME] if TASK_NAME and TASK_NAME in TASK_CONFIGS else list(TASK_ORDER)
+    pending_tasks = list(tasks)
+
     try:
-        tasks = [TASK_NAME] if TASK_NAME and TASK_NAME in TASK_CONFIGS else list(TASK_ORDER)
+        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY) if API_KEY else None
+    except Exception as exc:
+        for task_name in tasks:
+            log_task_failure(task_name=task_name, error=str(exc))
+        return
+
+    env: Optional[HospitalEnv] = None
+    try:
+        if API_URL:
+            env = HospitalEnv(API_URL)
+            await env.connect()
+        else:
+            env = await HospitalEnv.from_docker_image(LOCAL_IMAGE_NAME, timeout_s=120)
+    except Exception as exc:
+        for task_name in tasks:
+            log_task_failure(task_name=task_name, error=str(exc))
+        return
+
+    try:
         for task_name in tasks:
             await run_task(task_name, client, env)
+            if pending_tasks and pending_tasks[0] == task_name:
+                pending_tasks.pop(0)
+    except Exception as exc:
+        for task_name in pending_tasks:
+            log_task_failure(task_name=task_name, error=str(exc))
     finally:
         try:
             await env.close()
@@ -390,4 +414,9 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except Exception as exc:
+        tasks = [TASK_NAME] if TASK_NAME and TASK_NAME in TASK_CONFIGS else list(TASK_ORDER)
+        for task_name in tasks:
+            log_task_failure(task_name=task_name, error=str(exc))
