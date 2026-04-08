@@ -20,23 +20,15 @@ TEMPERATURE = 0.0
 MAX_TOKENS = 48
 
 TASK_ORDER: Sequence[str] = (
-    "very_easy",
     "easy",
-    "easy_medium",
     "medium",
-    "medium_hard",
     "hard",
-    "difficult",
 )
 
 TASK_SUCCESS_THRESHOLDS = {
-    "very_easy": 0.62,
     "easy": 0.58,
-    "easy_medium": 0.54,
-    "medium": 0.50,
-    "medium_hard": 0.46,
-    "hard": 0.42,
-    "difficult": 0.38,
+    "medium": 0.48,
+    "hard": 0.40,
 }
 
 BASE_RESOURCE_CONFIG = {
@@ -45,7 +37,7 @@ BASE_RESOURCE_CONFIG = {
         "er": 3,
         "radiologist": 2,
         "general_surgeon": 2,
-        "cardiothoracic_surgeon": 1,
+        "cardiothoracic_surgeon": 2,
         "obstetric_surgeon": 1,
     },
 
@@ -68,62 +60,30 @@ BASE_RESOURCE_CONFIG = {
 
     "operating-rooms": 3
 }
+
 TASK_CONFIGS = {
-
-    "very_easy": {
-        "patients": {
-            "count": 18,
-            "arrival_spread": "front_loaded",
-            "severity_weights": {"low": 65, "medium": 25, "high": 8, "critical": 2}
-        }
-    },
-
     "easy": {
         "patients": {
-            "count": 26,
-            "arrival_spread": "front_loaded",
-            "severity_weights": {"low": 50, "medium": 30, "high": 15, "critical": 5}
-        }
-    },
-
-    "easy_medium": {
-        "patients": {
-            "count": 34,
+            "count": 18,
             "arrival_spread": "uniform",
-            "severity_weights": {"low": 40, "medium": 35, "high": 18, "critical": 7}
-        }
+            "severity_weights": {"low": 65, "medium": 25, "high": 8, "critical": 2}
+        },
     },
 
     "medium": {
         "patients": {
-            "count": 42,
-            "arrival_spread": "uniform",
-            "severity_weights": {"low": 30, "medium": 35, "high": 23, "critical": 12}
-        }
-    },
-
-    "medium_hard": {
-        "patients": {
-            "count": 50,
-            "arrival_spread": "peak_hours",
-            "severity_weights": {"low": 22, "medium": 33, "high": 27, "critical": 18}
-        }
+            "count": 36,
+            "arrival_spread": "front_loaded",
+            "severity_weights": {"low": 35, "medium": 35, "high": 20, "critical": 10}
+        },
     },
 
     "hard": {
         "patients": {
-            "count": 58,
+            "count": 50,
             "arrival_spread": "peak_hours",
-            "severity_weights": {"low": 15, "medium": 30, "high": 30, "critical": 25}
-        }
-    },
-
-    "difficult": {
-        "patients": {
-            "count": 66,
-            "arrival_spread": "back_loaded",
-            "severity_weights": {"low": 10, "medium": 25, "high": 35, "critical": 30}
-        }
+            "severity_weights": {"low": 20, "medium": 35, "high": 25, "critical": 20}
+        },
     },
 }
 
@@ -382,7 +342,7 @@ async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -
             if done:
                 break
 
-        score = sum(rewards)/1000
+        score = sum(rewards) / 1000
         # TODO: Uncomment clamping
         # score = min(max(score, 0.0), 1.0)
         success_threshold = TASK_SUCCESS_THRESHOLDS.get(task_name, 1.0)
