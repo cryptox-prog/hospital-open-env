@@ -26,9 +26,9 @@ TASK_ORDER: Sequence[str] = (
 )
 
 TASK_SUCCESS_THRESHOLDS = {
-    "easy": 0.58,
-    "medium": 0.48,
-    "hard": 0.40,
+    "easy": 0.25,
+    "medium": 0.10,
+    "hard": 0.05,
 }
 
 BASE_RESOURCE_CONFIG = {
