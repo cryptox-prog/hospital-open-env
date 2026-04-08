@@ -278,7 +278,7 @@ class HospitalEnvironment(Environment):
         if overflowed:
             logger.info(
                 f"Quantum {quantum} | Overflow: "
-                f"{[(p.id, p.severity) for p in overflowed]}"
+                f"{[(p.patient_id, p.severity) for p in overflowed]}"
             )
 
     def _resource_free(self, busy_until_quantum: int) -> bool:

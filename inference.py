@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-import traceback
 from typing import List, Optional, Sequence
 from openai import OpenAI
 from client import HospitalEnv
@@ -9,7 +8,7 @@ from models import HospitalAction, Patient, ResourceAssignment, Severity
 
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or os.getenv("OPENAI_API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
+MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
 
 LOCAL_IMAGE_NAME = os.getenv("IMAGE_NAME", "hospital-open-env:local")
 BENCHMARK = os.getenv("HOSPITAL_BENCHMARK", "hospital-open-env")
@@ -132,14 +131,11 @@ def log_start(task: str, env: str, model: str) -> None:
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
     error_val = error if error else "null"
     done_val = str(done).lower()
-    print(
-        f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}",
-        flush=True,
-    )
+    print(f"[STEP]  step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}", flush=True)
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
+    print(f"[END]   success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}", flush=True)
 
 
 
@@ -205,7 +201,6 @@ def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
 
     # if no client or not enough patients, return the heuristic order without calling the model
     if client is None or len(heuristic_order) < 2:
-        print(f"[DEBUG] Straight up return heurestic")
         return heuristic_order
 
     # dont take too many patients for 1 prompt current limit 10
@@ -214,7 +209,6 @@ def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
     candidates = [p for p in sorted_patients if p.patient_id in candidates_ids]
     
     if not candidates:
-        print(f"[DEBUG] No candidates for LLM prioritization, using heuristic order.")
         return heuristic_order
 
     user_prompt = (
@@ -222,7 +216,6 @@ def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
         f"Waiting patients: {', '.join(summarize_patient(p) for p in candidates)}\n"
         "Return a JSON array of patient ids in priority order only."
     )
-    print(f"[DEBUG] Reached priority order implementation")
     try:
         completion = client.chat.completions.create(
             model=MODEL_NAME,
@@ -234,7 +227,6 @@ def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
             stream=False,
         )
         raw = (completion.choices[0].message.content or "").strip()
-        print(f"llm output: {raw}")
 
         # extract list from llm response
         start = raw.find("[")
@@ -246,12 +238,9 @@ def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
                 parsed = [str(item) for item in data if str(item) in heuristic_order]
                 if parsed:
                     remaining = [pid for pid in heuristic_order if pid not in parsed]
-                    print(f"[DEBUG] LLM parsed order: {parsed}, remaining heuristic order: {remaining}")
                     return parsed + remaining
     except Exception as exc:
         _ = exc
-        print("[DEBUG]", exc)
-    print("[DEBUG] LLM call failed, using heuristic order.")
     return heuristic_order
 
 
@@ -374,7 +363,6 @@ async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -
         success_threshold = TASK_SUCCESS_THRESHOLDS.get(task_name, 1.0)
         success = score >= success_threshold
     except Exception as exc:
-        print(f"[ERROR] Full traceback:\n{traceback.format_exc()}")
         log_step(step=0, action="", reward=0.0, done=True, error=str(exc))
         success = False
     finally:
@@ -382,7 +370,6 @@ async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -
 
 
 async def main() -> None:
-    print(f"[DEBUG] API_KEY={API_KEY}")
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY) if API_KEY else None
     
     if API_URL:
