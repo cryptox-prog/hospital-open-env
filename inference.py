@@ -9,17 +9,17 @@ from models import HospitalAction, Patient, ResourceAssignment, Severity
 
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or os.getenv("OPENAI_API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen3-8B-Instruct")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
 
 LOCAL_IMAGE_NAME = os.getenv("IMAGE_NAME", "hospital-open-env:local")
 BENCHMARK = os.getenv("HOSPITAL_BENCHMARK", "hospital-open-env")
 
 API_URL = os.getenv("HOSPITAL_API_URL", "")
-TASK_NAME = os.getenv("HOSPITAL_TASK")
+TASK_NAME = os.getenv("HOSPITAL_TASK") or os.getenv("MY_ENV_V4_TASK", "all")
 
 MAX_STEPS = 96
 TEMPERATURE = 0.0
-MAX_TOKENS = 48
+MAX_TOKENS = 192
 
 TASK_ORDER: Sequence[str] = (
     "easy",
@@ -35,38 +35,44 @@ TASK_SUCCESS_THRESHOLDS = {
 
 BASE_RESOURCE_CONFIG = {
     "doctors": {
-        "general": 4,
-        "er": 3,
-        "radiologist": 2,
-        "general_surgeon": 2,
-        "cardiothoracic_surgeon": 2,
-        "obstetric_surgeon": 1,
+        "general": 68,
+        "er": 51,
+        "radiologist": 34,
+        "general_surgeon": 34,
+        "cardiothoracic_surgeon": 34,
+        "obstetric_surgeon": 17,
     },
 
     "nurses": {
-        "general": 8,
-        "er": 6,
-        "or": 3
+        "general": 136,
+        "er": 102,
+        "or": 51
     },
 
     "scanners": {
-        "xray": 2,
-        "ct": 1,
-        "mri": 1
+        "xray": 34,
+        "ct": 17,
+        "mri": 17
     },
 
     "beds": {
-        "general": 16,
-        "er": 6
+        "general": 272,
+        "er": 102
     },
 
-    "operating-rooms": 3
+    "operating-rooms": 51
 }
+
+def smooth_ramp(start, peak, end, length):
+    up = [start + (peak - start) * i // (length // 2) for i in range(length // 2)]
+    down = [peak - (peak - end) * i // (length // 2) for i in range(length // 2)]
+    return up + down
+
 
 TASK_CONFIGS = {
     "easy": {
         "patients": {
-            "count": 18,
+            "count": 312,
             "arrival_spread": "uniform",
             "severity_weights": {"low": 65, "medium": 25, "high": 8, "critical": 2}
         },
@@ -74,7 +80,7 @@ TASK_CONFIGS = {
 
     "medium": {
         "patients": {
-            "count": 36,
+            "count": 312,
             "arrival_spread": "front_loaded",
             "severity_weights": {"low": 35, "medium": 35, "high": 20, "critical": 10}
         },
@@ -82,7 +88,7 @@ TASK_CONFIGS = {
 
     "hard": {
         "patients": {
-            "count": 50,
+            "count": 400,
             "arrival_spread": "peak_hours",
             "severity_weights": {"low": 20, "medium": 35, "high": 25, "critical": 20}
         },
@@ -97,10 +103,23 @@ SEVERITY_ORDER = {
 }
 
 SYSTEM_PROMPT = (
-    "You are planning hospital resource allocation. "
-    "Return only a JSON array of patient ids in priority order. "
-    "Prioritize: CRITICAL > HIGH > MEDIUM > LOW, "
-    "then higher condition score, then longest waiting time."
+    """
+    You are planning hospital resource allocation.
+    You MUST return ONLY a valid JSON array of patient ids.
+    Do not include:
+    - explanations
+    - markdown
+    - code
+    - comments
+    - text
+    Example valid response:
+    ["patient-1", "patient-2", "patient-3"]
+    Prioritize:
+    CRITICAL > HIGH > MEDIUM > LOW
+    Then higher condition score
+    Then longest waiting time
+    If you output anything other than JSON, your answer is invalid.
+    """
 )
 
 
@@ -215,11 +234,11 @@ def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
             stream=False,
         )
         raw = (completion.choices[0].message.content or "").strip()
+        print(f"llm output: {raw}")
 
         # extract list from llm response
         start = raw.find("[")
         end = raw.rfind("]")
-
         if start != -1 and end != -1 and end > start:
             data = json.loads(raw[start : end + 1])
             if isinstance(data, list):
@@ -231,6 +250,7 @@ def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
                     return parsed + remaining
     except Exception as exc:
         _ = exc
+        print("[DEBUG]", exc)
     print("[DEBUG] LLM call failed, using heuristic order.")
     return heuristic_order
 
@@ -255,7 +275,6 @@ def take_n(pool, predicate, count: int):
 
 
 def build_action(state, client: Optional[OpenAI]) -> tuple[HospitalAction, str]:
-    print(f"[DEBUG] Reached choose_priority_order call")
     priority_ids = choose_priority_order(client, state)
     waiting_by_id = {patient.patient_id: patient for patient in state.waiting_patients}
 

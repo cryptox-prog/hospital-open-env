@@ -180,19 +180,18 @@ class HospitalEnvironment(Environment):
                     k = 1
                 )[0]
             elif spread == "custom":
-                # supports either 24 hourly weights or step-aligned quantum weights
                 arrival_weights = config["arrival_weights"]
-                if len(arrival_weights) == 24:
-                    quantum_weights = [arrival_weights[quantum // self._state.time_quanta_per_hour] for quantum in arrival_quanta]
-                elif len(arrival_weights) == len(arrival_quanta):
-                    quantum_weights = arrival_weights
-                else:
-                    raise ValueError("arrival_weights must have length 24 or the number of step-aligned arrival quanta")
+
+                if len(arrival_weights) != len(arrival_quanta):
+                    raise ValueError(
+                        f"arrival_weights must have length {len(arrival_quanta)} "
+                        f"(got {len(arrival_weights)})"
+                    )
 
                 arrival_quantum = self._rng.choices(
                     arrival_quanta,
-                    weights = quantum_weights,
-                    k = 1
+                    weights=arrival_weights,
+                    k=1
                 )[0]
             else:
                 # default to uniform over step-aligned quanta
