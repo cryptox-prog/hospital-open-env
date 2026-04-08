@@ -46,7 +46,7 @@ MY_ENV_V4_BENCHMARK=1
 Docker build
 
 ```shell
-docker build -t hospital-open-env:local -f server/Dockerfile .
+docker build -t hospital-open-env:local .
 ```
 
 Run
