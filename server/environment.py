@@ -281,13 +281,13 @@ class HospitalEnvironment(Environment):
         for patient in self._state.waiting_patients:
             hours_waited = patient.waited_quanta / self._state.time_quanta_per_hour
             if patient.severity == Severity.CRITICAL:
-                penalty += 0.005 * hours_waited
+                penalty += 0.05 * hours_waited
             elif patient.severity == Severity.HIGH:
-                penalty += 0.003 * hours_waited
+                penalty += 0.03 * hours_waited
             elif patient.severity == Severity.MEDIUM:
-                penalty += 0.0015 * hours_waited
+                penalty += 0.015 * hours_waited
             else:
-                penalty += 0.0005 * hours_waited
+                penalty += 0.005 * hours_waited
         return penalty
 
     def _observation(self, done: bool = False, reward: Optional[float] = None, message: str = "") -> HospitalObservation:
@@ -520,7 +520,6 @@ class HospitalEnvironment(Environment):
         before_discharged_low = self._state.metrics.discharged_low
         before_left = self._state.metrics.left_patients
         before_denied_admission = self._state.metrics.overflow_patients
-        before_wait_time = self._state.metrics.total_wait_time_quanta
 
         quanta_to_advance = min(
             self._state.quanta_per_step,
@@ -548,25 +547,27 @@ class HospitalEnvironment(Environment):
         low_discharges_this_step = self._state.metrics.discharged_low - before_discharged_low
         left_this_step = self._state.metrics.left_patients - before_left
         denied_admission_this_step = self._state.metrics.overflow_patients - before_denied_admission
-        wait_penalty = self._state.metrics.total_wait_time_quanta - before_wait_time
 
-        all_patients_arrived = self._next_patient_index >= len(self._flatten_arrivals())
+        total_patients = len(self._flatten_arrivals())
+        all_patients_arrived = self._next_patient_index >= total_patients
         done = self._state.current_quantum >= self._state.horizon_quanta or (
             not self._state.waiting_patients and
             not self._state.active_patients and
             all_patients_arrived
         )
 
-        reward = ((
-            critical_discharges_this_step * 0.15
-            + high_discharges_this_step * 0.09
-            + med_discharges_this_step * 0.03
-            + low_discharges_this_step * 0.01
-            - deaths_this_step * 0.25
-            - self._severity_wait_penalty()
-            - denied_admission_this_step * 0.02
-            - left_this_step * 0.04
-        )/len(self._flatten_arrivals()))*10000
+        reward = (
+            critical_discharges_this_step * 15
+            + high_discharges_this_step * 9
+            + med_discharges_this_step * 3
+            + low_discharges_this_step * 1
+            - deaths_this_step * 25
+            - self._severity_wait_penalty() * total_patients
+            - denied_admission_this_step * 2
+            - left_this_step * 4
+        )
+
+        reward = reward * 100 / (total_patients if total_patients > 0 else reward)
 
         return self._observation(done=done, reward=reward, message=self._status_message(critical_discharges_this_step + high_discharges_this_step + med_discharges_this_step + low_discharges_this_step, deaths_this_step, done))
 
