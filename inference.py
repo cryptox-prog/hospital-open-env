@@ -6,13 +6,14 @@ from openai import OpenAI
 from client import HospitalEnv
 from models import HospitalAction, Patient, ResourceAssignment, Severity
 
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or os.getenv("OPENAI_API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen3-8B-Instruct")
 
-LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME", "hospital-open-env:local")
-API_URL = os.getenv("HOSPITAL_API_URL", "")
+LOCAL_IMAGE_NAME = os.getenv("IMAGE_NAME", "hospital-open-env:local")
 BENCHMARK = os.getenv("HOSPITAL_BENCHMARK", "hospital-open-env")
+
+API_URL = os.getenv("HOSPITAL_API_URL", "")
 TASK_NAME = os.getenv("HOSPITAL_TASK")
 
 MAX_STEPS = 96
