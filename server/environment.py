@@ -19,6 +19,37 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_RESET_CONFIG = {
+    "doctors": {
+        "general": 4,
+        "er": 3,
+        "radiologist": 2,
+        "general_surgeon": 2,
+        "cardiothoracic_surgeon": 2,
+        "obstetric_surgeon": 1,
+    },
+    "nurses": {
+        "general": 8,
+        "er": 6,
+        "or": 3,
+    },
+    "scanners": {
+        "xray": 2,
+        "ct": 1,
+        "mri": 1,
+    },
+    "beds": {
+        "general": 16,
+        "er": 6,
+    },
+    "operating-rooms": 3,
+    "patients": {
+        "count": 36,
+        "arrival_spread": "front_loaded",
+        "severity_weights": {"low": 35, "medium": 35, "high": 20, "critical": 10},
+    },
+}
+
 class HospitalEnvironment(Environment):
     SUPPORTS_CONCURRENT_SESSIONS = True
 
@@ -36,27 +67,43 @@ class HospitalEnvironment(Environment):
         self._next_patient_index = 0
 
     # noinspection PyUnusedLocal
-    def reset(self, config: dict, seed = None, episode_id = None, **kwargs) -> HospitalObservation:
+    def reset(self, config: Optional[dict] = None, seed = None, episode_id = None, **kwargs) -> HospitalObservation:
         # config = {"doctors": {"er": 3, "surgeon": 2}, "nurses": {...}, ..., "patient: {"count": 20, "severity_weights": {"low": 2, "critical": 4}}"}
-        # TODO: a default fallback config
         if seed is not None:
             self._rng.seed(seed)
+
+        effective_config = self._resolve_config(config)
 
         self._state = HospitalState(
             episode_id = episode_id or str(uuid.uuid4()),
 
-            doctors = self._build_resources(config["doctors"], DoctorResource, DoctorType, "doc"),
-            nurses = self._build_resources(config["nurses"], NurseResource, NurseType, "nurse"),
-            scanners = self._build_resources(config["scanners"], ScannerResource, ScannerType, "scan"),
-            beds = self._build_resources(config["beds"], BedResource, BedType, "bed"),
-            operating_rooms = self._build_operating_rooms(config["operating-rooms"])
+            doctors = self._build_resources(effective_config["doctors"], DoctorResource, DoctorType, "doc"),
+            nurses = self._build_resources(effective_config["nurses"], NurseResource, NurseType, "nurse"),
+            scanners = self._build_resources(effective_config["scanners"], ScannerResource, ScannerType, "scan"),
+            beds = self._build_resources(effective_config["beds"], BedResource, BedType, "bed"),
+            operating_rooms = self._build_operating_rooms(effective_config["operating-rooms"])
         )
 
-        self._scheduled_arrivals = self._build_patients_schedule(config["patients"])
+        self._scheduled_arrivals = self._build_patients_schedule(effective_config["patients"])
         self._next_patient_index = 0
         self._move_to_waiting(quantum = 0)
         self._state.metrics = HospitalMetrics()
         return self._observation(message="Started Hospital Shift")
+
+    @staticmethod
+    def _resolve_config(config: Optional[dict]) -> dict:
+        if not config:
+            return DEFAULT_RESET_CONFIG
+
+        merged_config = dict(DEFAULT_RESET_CONFIG)
+        for key, value in config.items():
+            if isinstance(value, dict) and isinstance(merged_config.get(key), dict):
+                nested = dict(merged_config[key])
+                nested.update(value)
+                merged_config[key] = nested
+            else:
+                merged_config[key] = value
+        return merged_config
         
     @staticmethod
     def _build_resources(config: dict, resource_class, type_enum, prefix: str) -> list:
