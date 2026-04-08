@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import traceback
 from typing import List, Optional, Sequence
 from openai import OpenAI
 from client import HospitalEnv
@@ -177,22 +178,24 @@ def summarize_patient(patient: Patient) -> str:
 
 def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
     # a prelinimary order of patients based on severity, condition score, and wait time
-    heuristic_order = [
-        patient.patient_id
-        for patient in sorted(
-            state.waiting_patients,
-            key=lambda p: (SEVERITY_ORDER[p.severity], -p.condition_score, -p.waited_quanta, p.arrival_quantum),
-        )
-    ]
+    sorted_patients = sorted(
+        state.waiting_patients,
+        key=lambda p: (SEVERITY_ORDER[p.severity], -p.condition_score, -p.waited_quanta, p.arrival_quantum),
+    )
+    heuristic_order = [patient.patient_id for patient in sorted_patients]
 
     # if no client or not enough patients, return the heuristic order without calling the model
     if client is None or len(heuristic_order) < 2:
+        print(f"[DEBUG] Straight up return heurestic")
         return heuristic_order
 
     # dont take too many patients for 1 prompt current limit 10
     # TODO: should this be limited ???
-    candidates = heuristic_order[: min(10, len(heuristic_order))]
+    candidates_ids = heuristic_order[: min(10, len(heuristic_order))]
+    candidates = [p for p in sorted_patients if p.patient_id in candidates_ids]
+    
     if not candidates:
+        print(f"[DEBUG] No candidates for LLM prioritization, using heuristic order.")
         return heuristic_order
 
     user_prompt = (
@@ -200,6 +203,7 @@ def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
         f"Waiting patients: {', '.join(summarize_patient(p) for p in candidates)}\n"
         "Return a JSON array of patient ids in priority order only."
     )
+    print(f"[DEBUG] Reached priority order implementation")
     try:
         completion = client.chat.completions.create(
             model=MODEL_NAME,
@@ -223,9 +227,11 @@ def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
                 parsed = [str(item) for item in data if str(item) in heuristic_order]
                 if parsed:
                     remaining = [pid for pid in heuristic_order if pid not in parsed]
+                    print(f"[DEBUG] LLM parsed order: {parsed}, remaining heuristic order: {remaining}")
                     return parsed + remaining
     except Exception as exc:
         _ = exc
+    print("[DEBUG] LLM call failed, using heuristic order.")
     return heuristic_order
 
 
@@ -249,6 +255,7 @@ def take_n(pool, predicate, count: int):
 
 
 def build_action(state, client: Optional[OpenAI]) -> tuple[HospitalAction, str]:
+    print(f"[DEBUG] Reached choose_priority_order call")
     priority_ids = choose_priority_order(client, state)
     waiting_by_id = {patient.patient_id: patient for patient in state.waiting_patients}
 
@@ -348,6 +355,7 @@ async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -
         success_threshold = TASK_SUCCESS_THRESHOLDS.get(task_name, 1.0)
         success = score >= success_threshold
     except Exception as exc:
+        print(f"[ERROR] Full traceback:\n{traceback.format_exc()}")
         log_step(step=0, action="", reward=0.0, done=True, error=str(exc))
         success = False
     finally:
@@ -355,6 +363,7 @@ async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -
 
 
 async def main() -> None:
+    print(f"[DEBUG] API_KEY={API_KEY}")
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY) if API_KEY else None
     
     if API_URL:

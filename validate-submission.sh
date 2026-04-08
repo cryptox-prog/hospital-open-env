@@ -107,8 +107,15 @@ log "${BOLD}Step 1/3: Pinging HF Space${NC} ($PING_URL/reset) ..."
 
 CURL_OUTPUT=$(portable_mktemp "validate-curl")
 CLEANUP_FILES+=("$CURL_OUTPUT")
+
+AUTH_HEADER=()
+if [ -n "${HF_TOKEN:-}" ]; then
+  AUTH_HEADER=(-H "Authorization: Bearer $HF_TOKEN")
+fi
+
 HTTP_CODE=$(curl -s -o "$CURL_OUTPUT" -w "%{http_code}" -X POST \
   -H "Content-Type: application/json" -d '{}' \
+  "${AUTH_HEADER[@]}" \
   "$PING_URL/reset" --max-time 30 2>"$CURL_OUTPUT" || printf "000")
 
 if [ "$HTTP_CODE" = "200" ]; then

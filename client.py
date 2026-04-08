@@ -1,7 +1,20 @@
 from openenv.core.client_types import StepResult
 from openenv.core.env_client import EnvClient
 
-from models import HospitalAction, HospitalObservation, HospitalState
+from models import (
+	HospitalAction,
+	HospitalObservation,
+	HospitalState,
+	Patient,
+	DoctorResource,
+	NurseResource,
+	ScannerResource,
+	BedResource,
+	OperatingRoomResource,
+	BloodResource,
+	OxygenResource,
+	HospitalMetrics,
+)
 
 
 class HospitalEnv(EnvClient[HospitalAction, HospitalObservation, HospitalState]):
@@ -33,6 +46,23 @@ class HospitalEnv(EnvClient[HospitalAction, HospitalObservation, HospitalState])
 
 	def _parse_state(self, payload: dict) -> HospitalState:
 		# Parses the full state of the hospital environment from the payload
+		# Properly deserialize nested objects from JSON
+		waiting_patients = [Patient.model_validate(p) for p in payload.get("waiting_patients", [])]
+		active_patients = [Patient.model_validate(p) for p in payload.get("active_patients", [])]
+		discharged_patients = [Patient.model_validate(p) for p in payload.get("discharged_patients", [])]
+		left_patients = [Patient.model_validate(p) for p in payload.get("left_patients", [])]
+		overflow_patients = [Patient.model_validate(p) for p in payload.get("overflow_patients", [])]
+		deceased_patients = [Patient.model_validate(p) for p in payload.get("deceased_patients", [])]
+		
+		doctors = [DoctorResource.model_validate(d) for d in payload.get("doctors", [])]
+		nurses = [NurseResource.model_validate(n) for n in payload.get("nurses", [])]
+		scanners = [ScannerResource.model_validate(s) for s in payload.get("scanners", [])]
+		beds = [BedResource.model_validate(b) for b in payload.get("beds", [])]
+		operating_rooms = [OperatingRoomResource.model_validate(o) for o in payload.get("operating_rooms", [])]
+		blood_bank = [BloodResource.model_validate(b) for b in payload.get("blood_bank", [])]
+		oxygen_supply = [OxygenResource.model_validate(o) for o in payload.get("oxygen_supply", [])]
+		metrics = HospitalMetrics.model_validate(payload.get("metrics", {}))
+		
 		return HospitalState(
 			episode_id=payload.get("episode_id"),
 			current_quantum=payload.get("current_quantum", 0),
@@ -40,16 +70,18 @@ class HospitalEnv(EnvClient[HospitalAction, HospitalObservation, HospitalState])
 			time_quantum_minutes=payload.get("time_quantum_minutes", 15),
 			time_quanta_per_hour=payload.get("time_quanta_per_hour", 4),
 			quanta_per_step=payload.get("quanta_per_step", 2),
-			waiting_patients=payload.get("waiting_patients", []),
-			active_patients=payload.get("active_patients", []),
-			discharged_patients=payload.get("discharged_patients", []),
-			deceased_patients=payload.get("deceased_patients", []),
-			doctors=payload.get("doctors", []),
-			nurses=payload.get("nurses", []),
-			scanners=payload.get("scanners", []),
-			beds=payload.get("beds", []),
-			operating_rooms=payload.get("operating_rooms", []),
-			blood_bank=payload.get("blood_bank", []),
-			oxygen_supply=payload.get("oxygen_supply", []),
-			metrics=payload.get("metrics", {}),
+			waiting_patients=waiting_patients,
+			active_patients=active_patients,
+			discharged_patients=discharged_patients,
+			left_patients=left_patients,
+			overflow_patients=overflow_patients,
+			deceased_patients=deceased_patients,
+			doctors=doctors,
+			nurses=nurses,
+			scanners=scanners,
+			beds=beds,
+			operating_rooms=operating_rooms,
+			blood_bank=blood_bank,
+			oxygen_supply=oxygen_supply,
+			metrics=metrics,
 		)
