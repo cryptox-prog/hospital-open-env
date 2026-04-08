@@ -1,3 +1,13 @@
+---
+title: hospital-open-env
+emoji: 🏥
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Hospital Emergency Environment
 
 A hospital environment overburdened with patients, the agent must allocate the different resources
