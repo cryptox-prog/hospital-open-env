@@ -20,6 +20,8 @@ MAX_STEPS = 96
 TEMPERATURE = 0.0
 MAX_TOKENS = 192
 
+SMALL_NUMBER = 0.00001
+
 TASK_ORDER: Sequence[str] = (
     "easy",
     "medium",
@@ -365,7 +367,7 @@ async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -
                 break
 
         score = sum(rewards) / 1000
-        score = min(max(score, 0.0), 1.0)
+        score = min(max(score, SMALL_NUMBER), 1.0 - SMALL_NUMBER)
         success_threshold = TASK_SUCCESS_THRESHOLDS.get(task_name, 1.0)
         success = score >= success_threshold
     except Exception as exc:
