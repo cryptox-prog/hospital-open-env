@@ -7,7 +7,7 @@ from client import HospitalEnv
 from models import HospitalAction, Patient, ResourceAssignment, Severity
 
 API_KEY = os.environ["API_KEY"]
-API_BASE_URL = os.environ.get["API_BASE_URL"]
+API_BASE_URL = os.environ["API_BASE_URL"]
 MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
 
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME", "hospital-open-env:local")
