@@ -64,12 +64,6 @@ BASE_RESOURCE_CONFIG = {
     "operating-rooms": 51
 }
 
-def smooth_ramp(start, peak, end, length):
-    up = [start + (peak - start) * i // (length // 2) for i in range(length // 2)]
-    down = [peak - (peak - end) * i // (length // 2) for i in range(length // 2)]
-    return up + down
-
-
 TASK_CONFIGS = {
     "easy": {
         "patients": {
