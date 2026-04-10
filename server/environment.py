@@ -578,7 +578,8 @@ class HospitalEnvironment(Environment):
             not self._state.active_patients and
             all_patients_arrived
         )
-        
+
+        # TODO: Instead of rewarding discharges, reward the start of treatment
         reward = (
             critical_discharges_this_step * 15
             + high_discharges_this_step * 9

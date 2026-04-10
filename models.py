@@ -302,6 +302,7 @@ class HospitalState(State):
 # The Actions, Observations
 # --------------------------------------------------------------------------------
 class ResourceAssignment(Action):
+    # TODO: allow partial assignments
     patient_id: str
     doctor_ids: List[str] = []
     nurse_ids: List[str] = []
