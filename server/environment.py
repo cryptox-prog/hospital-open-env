@@ -362,31 +362,19 @@ class HospitalEnvironment(Environment):
                 return patient
         return None
     
-    # TODO: Check the below three functions
-    def _take_resource(self, resource_ids: List[str | None], resources: List[DoctorResource | ScannerResource], required_type) -> Optional[object]:
+    def _take_matching_resources(self, resource_ids: List[Optional[str]], resources: List[DoctorResource | NurseResource | ScannerResource | BedResource], required_type, required_count: int = 1) -> list:
+        matched_resources = []
+        seen_resource_ids = set()
         for resource_id in resource_ids:
+            if not resource_id or resource_id in seen_resource_ids:
+                continue
             resource = next((r for r in resources if r.resource_id == resource_id), None)
             if resource and resource.resource_type == required_type and self._resource_free(resource.busy_until_quantum):
-                return resource
-        return None
-
-    def _take_resources(self, resource_ids: List[str], resources: List[NurseResource], required_type, required_count: int) -> list:
-        taken = []
-        for resource_id in resource_ids:
-            resource = next((r for r in resources if r.resource_id == resource_id), None)
-            if resource and resource.resource_type == required_type and self._resource_free(resource.busy_until_quantum):
-                taken.append(resource)
-            if len(taken) >= required_count:
+                matched_resources.append(resource)
+                seen_resource_ids.add(resource_id)
+            if len(matched_resources) >= required_count:
                 break
-        return taken
-    
-    def _take_bed(self, bed_id: Optional[str], required_type: BedType) -> Optional[BedResource]:
-        if not bed_id:
-            return None
-        bed = next((b for b in self._state.beds if b.resource_id == bed_id), None)
-        if bed and bed.resource_type == required_type and self._resource_free(bed.busy_until_quantum):
-            return bed
-        return None
+        return matched_resources
     
     def _take_operating_room(self, room_id: Optional[str]) -> Optional[OperatingRoomResource]:
         if not room_id:
@@ -402,10 +390,13 @@ class HospitalEnvironment(Environment):
             if patient is None:
                 continue
 
-            doctor = self._take_resource(assignment.doctor_ids, self._state.doctors, patient.required_doctor)
-            nurses = self._take_resources(assignment.nurse_ids, self._state.nurses, patient.required_nurse_type, patient.required_nurses)
-            bed = self._take_bed(assignment.bed_id, patient.required_bed_type)
-            scanner = self._take_resource([assignment.scanner_id], self._state.scanners, patient.required_scanner) if patient.required_scanner else None
+            doctor_matches = self._take_matching_resources(assignment.doctor_ids, self._state.doctors, patient.required_doctor)
+            doctor = doctor_matches[0] if doctor_matches else None
+            nurses = self._take_matching_resources(assignment.nurse_ids, self._state.nurses, patient.required_nurse_type, patient.required_nurses)
+            bed_matches = self._take_matching_resources([assignment.bed_id], self._state.beds, patient.required_bed_type)
+            bed = bed_matches[0] if bed_matches else None
+            scanner_matches = self._take_matching_resources([assignment.scanner_id], self._state.scanners, patient.required_scanner) if patient.required_scanner else []
+            scanner = scanner_matches[0] if scanner_matches else None
             operating_room = self._take_operating_room(assignment.operating_room_id) if patient.operation_duration_quanta > 0 else None
             
             # if resources not in required amount skip assignment
