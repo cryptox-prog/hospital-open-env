@@ -127,10 +127,12 @@ class Severity(StrEnum):
     def required_nurses_count(self) -> int:
         return 2 if self in (Severity.HIGH, Severity.CRITICAL) else 1
 
-    @property
-    def max_wait_quanta(self) -> int:
+    def max_wait_quanta(self, rng) -> int:
+        # TODO: Define range instead of just binary wait hours 
+        impatient_low_wait = quanta_from_hours(1) + quanta_from_minutes(30)
+        patient_low_wait = quanta_from_hours(2) + quanta_from_minutes(30)
         return {
-            Severity.LOW: quanta_from_hours(4),
+            Severity.LOW: rng.choice([impatient_low_wait, patient_low_wait]),
             Severity.MEDIUM: quanta_from_hours(3),
             Severity.HIGH: quanta_from_hours(2),
             Severity.CRITICAL: quanta_from_hours(1),
@@ -138,6 +140,7 @@ class Severity(StrEnum):
 
     @property
     def initial_condition_score(self) -> float:
+        # TODO: Remove this (redundant)
         return {Severity.LOW: 1.0, Severity.MEDIUM: 2.0, Severity.HIGH: 4.0, Severity.CRITICAL: 6.0}[self]
 
     @property
