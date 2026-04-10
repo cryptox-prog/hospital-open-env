@@ -365,6 +365,7 @@ class HospitalEnvironment(Environment):
                 return patient
         return None
     
+    # TODO: Check the below three functions
     def _take_resource(self, resource_ids: List[str | None], resources: List[DoctorResource | ScannerResource], required_type) -> Optional[object]:
         for resource_id in resource_ids:
             resource = next((r for r in resources if r.resource_id == resource_id), None)
@@ -426,7 +427,7 @@ class HospitalEnvironment(Environment):
             for nurse in nurses:
                 nurse.busy_until_quantum = self._state.current_quantum + patient.treatment_quanta
             bed.occupied_by_patient_id = patient.patient_id
-            bed.busy_until_quantum = patient.treatment_quanta
+            bed.busy_until_quantum = self._state.current_quantum + patient.treatment_quanta
             
             if scanner is not None:
                 scanner.busy_until_quantum = self._state.current_quantum + 1
@@ -485,6 +486,9 @@ class HospitalEnvironment(Environment):
         self._state.waiting_patients = surviving_waiting
 
     def _advance_active_patients(self) -> int:
+        """
+
+        """
         remaining_active: List[Patient] = []
         discharges = 0
 
@@ -493,7 +497,7 @@ class HospitalEnvironment(Environment):
             patient.condition_score = max(0.0, patient.condition_score - self._hourly_rate_per_quantum(patient.severity.recovery_rate))
 
             # Find the bed for this patient
-            bed = next((b for b in self._state.beds if b.occupied_by_patient_id == patient.patient_id), None)
+            bed = next((b for b in self._state.beds if b.occupied_by_patient_id == patient.patient_id), None) #TODO: don't use next function, do for loop search
             if bed and bed.busy_until_quantum <= 0:
                 patient.is_stable = True
                 self._state.discharged_patients.append(patient)
@@ -517,6 +521,7 @@ class HospitalEnvironment(Environment):
         self._state.active_patients = remaining_active
         return discharges
 
+    # TODO : Change it to increment logic, merge with general function
     def _decrement_bed_times(self) -> None:
         for bed in self._state.beds:
             if bed.busy_until_quantum > 0:
