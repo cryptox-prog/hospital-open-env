@@ -361,6 +361,15 @@ class HospitalEnvironment(Environment):
             if patient.patient_id == patient_id:
                 return patient
         return None
+
+    @staticmethod
+    def _find_by_id(items: list, id_attr: str, target_id: Optional[str]) -> Optional[object]:
+        if not target_id:
+            return None
+        for item in items:
+            if getattr(item, id_attr, None) == target_id:
+                return item
+        return None
     
     def _take_matching_resources(self, resource_ids: List[Optional[str]], resources: List[DoctorResource | NurseResource | ScannerResource | BedResource], required_type, required_count: int = 1) -> list:
         matched_resources = []
@@ -368,7 +377,7 @@ class HospitalEnvironment(Environment):
         for resource_id in resource_ids:
             if not resource_id or resource_id in seen_resource_ids:
                 continue
-            resource = next((r for r in resources if r.resource_id == resource_id), None)
+            resource = self._find_by_id(resources, "resource_id", resource_id)
             if resource and resource.resource_type == required_type and self._resource_free(resource.busy_until_quantum):
                 matched_resources.append(resource)
                 seen_resource_ids.add(resource_id)
@@ -377,9 +386,7 @@ class HospitalEnvironment(Environment):
         return matched_resources
     
     def _take_operating_room(self, room_id: Optional[str]) -> Optional[OperatingRoomResource]:
-        if not room_id:
-            return None
-        room = next((r for r in self._state.operating_rooms if r.room_id == room_id), None)
+        room = self._find_by_id(self._state.operating_rooms, "room_id", room_id)
         if room and self._resource_free(room.busy_until_quantum):
             return room
         return None
