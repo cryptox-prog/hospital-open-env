@@ -473,7 +473,6 @@ class HospitalEnvironment(Environment):
             patient.waited_quanta += 1
             patient.condition_score += self._hourly_rate_per_quantum(patient.severity.wait_deterioration)
             self._update_severity(patient)
-            self._state.metrics.total_wait_time_quanta += 1
 
             if self._patient_died(patient):
                 self._state.deceased_patients.append(patient)
