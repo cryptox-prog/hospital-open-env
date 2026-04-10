@@ -198,7 +198,6 @@ def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
         return heuristic_order
 
     # dont take too many patients for 1 prompt current limit 10
-    # TODO: should this be limited ???
     candidates_ids = heuristic_order[: min(10, len(heuristic_order))]
     candidates = [p for p in sorted_patients if p.patient_id in candidates_ids]
     
