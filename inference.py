@@ -162,14 +162,6 @@ def free_resources_by_time(resources, current_quantum: int):
             free_resources.append(resource)
     return free_resources
 
-def free_beds_by_occupancy(beds, current_quantum: int):
-    free_beds = []
-    for bed in beds:
-        if bed.busy_until_quantum <= current_quantum:
-            free_beds.append(bed)
-    return free_beds
-
-
 def format_assignment(assignment: ResourceAssignment) -> str:
     # Conver resource assignement struct to string for step logging
     nurse_part = "+".join(assignment.nurse_ids) if assignment.nurse_ids else "none"
@@ -272,7 +264,7 @@ def build_action(state, client: Optional[OpenAI]) -> tuple[HospitalAction, str]:
     available_doctors = free_resources_by_time(state.doctors, state.current_quantum)
     available_nurses = free_resources_by_time(state.nurses, state.current_quantum)
     available_scanners = free_resources_by_time(state.scanners, state.current_quantum)
-    available_beds = free_beds_by_occupancy(state.beds, state.current_quantum)
+    available_beds = free_resources_by_time(state.beds, state.current_quantum)
     available_rooms = free_resources_by_time(state.operating_rooms, state.current_quantum)
 
     assignments: List[ResourceAssignment] = []
