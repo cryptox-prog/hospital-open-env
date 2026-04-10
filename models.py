@@ -19,6 +19,10 @@ def quanta_from_minutes(minutes: int) -> int:
         raise ValueError("minutes must be divisible by TIME_QUANTUM_MINUTES")
     return minutes // TIME_QUANTUM_MINUTES
 
+
+def hours_from_quanta(quanta: int) -> float:
+    return quanta / TIME_QUANTA_PER_HOUR
+
 # --------------------------------------------------------------------------------
 # The Resource Types
 # --------------------------------------------------------------------------------

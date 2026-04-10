@@ -7,7 +7,7 @@ from typing import List, Dict, Optional
 from models import (HospitalState, HospitalObservation, DoctorResource,
                      DoctorType, NurseResource, NurseType, OperationType, ScannerResource, ScannerType,
                      BedResource, BedType, OperatingRoomResource, Severity, Patient,
-                     HospitalAction, HospitalMetrics, CRITICAL_LIMIT)
+                     HospitalAction, HospitalMetrics, CRITICAL_LIMIT, hours_from_quanta)
 
 import logging
 
@@ -315,14 +315,11 @@ class HospitalEnvironment(Environment):
 
     def _hourly_rate_per_quantum(self, hourly_rate: float) -> float:
         return hourly_rate / self._state.time_quanta_per_hour
-
-    #def _wait_penalty_to_reward(self, wait_penalty_quanta: int) -> float:
-    #    return 0.1 * (wait_penalty_quanta / self._state.time_quanta_per_hour)
     
     def _severity_wait_penalty(self) -> float:
         penalty = 0.0
         for patient in self._state.waiting_patients:
-            hours_waited = patient.waited_quanta / self._state.time_quanta_per_hour
+            hours_waited = hours_from_quanta(patient.waited_quanta)
             if patient.severity == Severity.CRITICAL:
                 penalty += 0.05 * hours_waited
             elif patient.severity == Severity.HIGH:
