@@ -238,7 +238,7 @@ class HospitalEnvironment(Environment):
                 arrival_quantum = arrival_quantum,
                 severity = severity,
                 condition_score = severity.initial_condition_score,
-                max_wait_quanta = severity.max_wait_quanta,
+                max_wait_quanta = severity.max_wait_quanta(self._rng),
                 waited_quanta = 0,
                 required_doctor = operation_type.required_surgeon if operation_type else severity.required_doctor,
                 required_nurse_type = required_nurse_type,
@@ -313,8 +313,8 @@ class HospitalEnvironment(Environment):
             result[severity.value] = count
         return result
 
-    def _hourly_rate_per_quantum(self, hourly_rate: float) -> float:
-        return hourly_rate / self._state.time_quanta_per_hour
+    def _deterioration_per_hour_to_deterioration_per_quanta(self, deterioration_per_hour: float) -> float:
+        return deterioration_per_hour / self._state.time_quanta_per_hour
     
     def _severity_wait_penalty(self) -> float:
         penalty = 0.0
@@ -429,7 +429,7 @@ class HospitalEnvironment(Environment):
 
     @staticmethod
     def _patient_died(patient: Patient) -> bool:
-        wait_limit = patient.severity.max_wait_quanta
+        wait_limit = patient.max_wait_quanta
         critical_limit = CRITICAL_LIMIT
         if patient.severity == Severity.CRITICAL:
             return patient.waited_quanta > wait_limit or patient.condition_score >= critical_limit
@@ -441,11 +441,10 @@ class HospitalEnvironment(Environment):
             return patient.waited_quanta >= patient.max_wait_quanta
         return False
 
-    @staticmethod
-    def _update_severity(patient: Patient) -> None:
-        if patient.severity == Severity.HIGH and patient.waited_quanta >= patient.severity.max_wait_quanta:
+    def _update_severity(self, patient: Patient) -> None:
+        if patient.severity == Severity.HIGH and patient.waited_quanta >= patient.max_wait_quanta:
             patient.severity = Severity.CRITICAL
-            patient.max_wait_quanta = patient.severity.max_wait_quanta
+            patient.max_wait_quanta += patient.severity.max_wait_quanta(self._rng)
             patient.required_doctor = patient.severity.required_doctor
             patient.required_nurse_type = patient.severity.required_nurse
             patient.required_nurses = patient.severity.required_nurses_count
@@ -456,7 +455,7 @@ class HospitalEnvironment(Environment):
         surviving_waiting: List[Patient] = []
         for patient in self._state.waiting_patients:
             patient.waited_quanta += 1
-            patient.condition_score += self._hourly_rate_per_quantum(patient.severity.wait_deterioration)
+            patient.condition_score += self.deterioration_per_hour_to_deterioration_per_quanta(patient.severity.wait_deterioration)
             self._update_severity(patient)
 
             if self._patient_died(patient):
@@ -470,15 +469,12 @@ class HospitalEnvironment(Environment):
         self._state.waiting_patients = surviving_waiting
 
     def _advance_active_patients(self) -> int:
-        """
-
-        """
         remaining_active: List[Patient] = []
         discharges = 0
 
         for patient in self._state.active_patients:
             quanta_elapsed = self._state.current_quantum - patient.treatment_started_quantum
-            patient.condition_score = max(0.0, patient.condition_score - self._hourly_rate_per_quantum(patient.severity.recovery_rate))
+            patient.condition_score = max(0.0, patient.condition_score - self.deterioration_per_hour_to_deterioration_per_quanta(patient.severity.recovery_rate))
 
             if quanta_elapsed >= patient.treatment_quanta:
                 patient.is_stable = True
@@ -582,7 +578,7 @@ class HospitalEnvironment(Environment):
             not self._state.active_patients and
             all_patients_arrived
         )
-
+        
         reward = (
             critical_discharges_this_step * 15
             + high_discharges_this_step * 9
