@@ -435,7 +435,7 @@ class HospitalEnvironment(Environment):
         surviving_waiting: List[Patient] = []
         for patient in self._state.waiting_patients:
             patient.waited_quanta += 1
-            patient.condition_score += self.deterioration_per_hour_to_deterioration_per_quanta(patient.severity.wait_deterioration)
+            patient.condition_score += self._deterioration_per_hour_to_deterioration_per_quanta(patient.severity.wait_deterioration)
             self._update_severity(patient)
 
             if self._patient_died(patient):
@@ -454,7 +454,7 @@ class HospitalEnvironment(Environment):
 
         for patient in self._state.active_patients:
             quanta_elapsed = self._state.current_quantum - patient.treatment_started_quantum
-            patient.condition_score = max(0.0, patient.condition_score - self.deterioration_per_hour_to_deterioration_per_quanta(patient.severity.recovery_rate))
+            patient.condition_score = max(0.0, patient.condition_score - self._deterioration_per_hour_to_deterioration_per_quanta(patient.severity.recovery_rate))
 
             if quanta_elapsed >= patient.treatment_quanta:
                 patient.is_stable = True
