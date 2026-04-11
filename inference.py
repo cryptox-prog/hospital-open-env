@@ -1,10 +1,10 @@
 import asyncio
 import json
 import os
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Dict
 from openai import OpenAI
 from client import HospitalEnv
-from models import HospitalAction, Patient, ResourceAssignment, Severity
+from models import HospitalAction, Patient, ResourceAssignment, Severity, DoctorResource, NurseResource, ScannerResource, BedResource, OperatingRoomResource
 
 API_KEY = os.environ["API_KEY"]
 API_BASE_URL = os.environ["API_BASE_URL"]
@@ -142,7 +142,7 @@ def log_task_failure(task_name: str, error: str) -> None:
 
 
 # --------------------------------------------------------------------------------
-# Tasks Helprer Functions
+# Tasks Helper Functions
 # --------------------------------------------------------------------------------
 def get_task_config(task_name: str) -> dict:
     task = TASK_CONFIGS.get(task_name, TASK_CONFIGS["easy"])
@@ -184,8 +184,24 @@ def summarize_patient(patient: Patient) -> str:
         f"bed={patient.required_bed_type.value}:scan={scanner}:op={operation}"
     )
 
+def count_free_by_subtype(resources: Optional[List[DoctorResource | NurseResource | ScannerResource | BedResource]]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for resource in resources:
+        subtype = resource.resource_type.value
+        counts[subtype] = counts.get(subtype, 0) + 1
+    return counts
 
-def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
+
+def build_free_resource_summary(available_doctors: List[DoctorResource], available_nurses: List[NurseResource], available_scanners: List[ScannerResource], available_beds: List[BedResource], available_rooms: List[OperatingRoomResource]) -> dict:
+    return {
+        "doctors": count_free_by_subtype(available_doctors),
+        "nurses": count_free_by_subtype(available_nurses),
+        "scanners": count_free_by_subtype(available_scanners),
+        "beds": count_free_by_subtype(available_beds),
+        "operating_rooms": {"total": len(available_rooms)},
+    }
+
+def choose_priority_order(client: Optional[OpenAI], state, free_resource_summary) -> List[str]:
     # a prelinimary order of patients based on severity, condition score, and wait time
     sorted_patients = sorted(
         state.waiting_patients,
@@ -197,7 +213,7 @@ def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
     if client is None or len(heuristic_order) < 2:
         return heuristic_order
 
-    # dont take too many patients for 1 prompt current limit 10
+    # don't take too many patients for 1 prompt. Current limit is 10
     candidates_ids = heuristic_order[: min(10, len(heuristic_order))]
     candidates = [p for p in sorted_patients if p.patient_id in candidates_ids]
     
@@ -206,6 +222,7 @@ def choose_priority_order(client: Optional[OpenAI], state) -> List[str]:
 
     user_prompt = (
         f"Task: Allocate hospital patients at quantum {state.current_quantum}.\n"
+        f"Free resources: {json.dumps(free_resource_summary or {})}\n"
         f"Waiting patients: {', '.join(summarize_patient(p) for p in candidates)}\n"
         "Return a JSON array of patient ids in priority order only."
     )
@@ -257,14 +274,16 @@ def take_n(pool, predicate, count: int):
 
 
 def build_action(state, client: Optional[OpenAI]) -> tuple[HospitalAction, str]:
-    priority_ids = choose_priority_order(client, state)
-    waiting_by_id = {patient.patient_id: patient for patient in state.waiting_patients}
-
     available_doctors = free_resources_by_time(state.doctors, state.current_quantum)
     available_nurses = free_resources_by_time(state.nurses, state.current_quantum)
     available_scanners = free_resources_by_time(state.scanners, state.current_quantum)
     available_beds = free_resources_by_time(state.beds, state.current_quantum)
     available_rooms = free_resources_by_time(state.operating_rooms, state.current_quantum)
+
+    free_resource_summary = build_free_resource_summary(available_doctors, available_nurses, available_scanners, available_beds, available_rooms)
+
+    priority_ids = choose_priority_order(client, state, free_resource_summary)
+    waiting_by_id = {patient.patient_id: patient for patient in state.waiting_patients}
 
     assignments: List[ResourceAssignment] = []
     action_parts: List[str] = []
