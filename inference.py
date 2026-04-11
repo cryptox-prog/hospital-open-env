@@ -220,11 +220,9 @@ def choose_priority_order(client: Optional[OpenAI], state, free_resource_summary
     if not candidates:
         return heuristic_order
 
-    last_step_payload = last_step_context or {}
-
     user_prompt = (
         f"Task: Allocate hospital patients at quantum {state.current_quantum}.\n"
-        f"Last step: {json.dumps(last_step_payload or {})}\n"
+        f"Last step: {json.dumps(last_step_context or {})}\n"
         f"Free resources: {json.dumps(free_resource_summary or {})}\n"
         f"Waiting patients: {', '.join(summarize_patient(p) for p in candidates)}\n"
         "Return a JSON array of patient ids in priority order only."
