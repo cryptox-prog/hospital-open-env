@@ -274,14 +274,14 @@ def build_action(state, client: Optional[OpenAI]) -> tuple[HospitalAction, str]:
         if patient is None:
             continue
 
-        doctor = take_first(available_doctors, lambda r, required=patient.required_doctor: r.resource_type == required)
-        nurses = take_n(available_nurses, lambda r, required=patient.required_nurse_type: r.resource_type == required, patient.required_nurses)
-        bed = take_first(available_beds, lambda r, required=patient.required_bed_type: r.resource_type == required)
+        doctor = take_first(available_doctors, lambda r: r.resource_type == patient.required_doctor)
+        nurses = take_n(available_nurses, lambda r: r.resource_type == patient.required_nurse_type, patient.required_nurses)
+        bed = take_first(available_beds, lambda r: r.resource_type == patient.required_bed_type)
         scanner = None
         if patient.required_scanner is not None:
             scanner = take_first(
                 available_scanners,
-                lambda r, required=patient.required_scanner: r.resource_type == required,
+                lambda r: r.resource_type == patient.required_scanner,
             )
         operating_room = None
         if patient.operation_duration_quanta > 0:
