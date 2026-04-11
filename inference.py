@@ -17,8 +17,8 @@ API_URL = os.getenv("API_URL", "https://pranamud123-hospital-open-env.hf.space")
 TASK_NAME = os.getenv("TASK") or os.getenv("MY_ENV_V4_TASK", "all")
 
 MAX_STEPS = 96
-TEMPERATURE = 0.0
-MAX_TOKENS = 1000
+TEMPERATURE = 0.2
+MAX_TOKENS = 1024
 
 SMALL_NUMBER = 0.01
 
