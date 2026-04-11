@@ -9,16 +9,6 @@ from models import (HospitalState, HospitalObservation, DoctorResource,
                      BedResource, BedType, OperatingRoomResource, Severity, Patient,
                      HospitalAction, HospitalMetrics, CRITICAL_LIMIT, hours_from_quanta)
 
-import logging
-
-logging.basicConfig(
-    filename="hospital_log.txt",
-    level=logging.INFO,
-    format="%(asctime)s - %(message)s"
-)
-
-logger = logging.getLogger(__name__)
-
 DEFAULT_RESET_CONFIG = {
     "doctors": {
         "general": 4,
@@ -270,16 +260,6 @@ class HospitalEnvironment(Environment):
                     overflowed.append(patient)
                     self._state.metrics.overflow_patients += 1
             self._next_patient_index += len(new_patients)
-        if arrived:
-            logger.info(
-                f"Quantum {quantum} | Arrived: "
-                f"{[(p.patient_id, p.severity) for p in arrived]}"
-            )
-        if overflowed:
-            logger.info(
-                f"Quantum {quantum} | Overflow: "
-                f"{[(p.patient_id, p.severity) for p in overflowed]}"
-            )
 
     def _resource_free(self, busy_until_quantum: int) -> bool:
         return busy_until_quantum <= self._state.current_quantum
