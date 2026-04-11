@@ -341,13 +341,6 @@ async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -
     try:
         result = await env.reset(config=get_task_config(task_name), seed=42, episode_id=f"{task_name}-episode")
 
-        if client is not None:
-            try:
-                state = await env.state()
-                _ = choose_priority_order(client, state)
-            except Exception:
-                pass
-
         for step in range(1, MAX_STEPS + 1):
             if bool(result.done):
                 break
