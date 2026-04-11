@@ -533,12 +533,16 @@ class HospitalEnvironment(Environment):
     def step(self, action: HospitalAction, **kwargs) -> HospitalObservation:
         current_quantum = self._state.current_quantum
         before_deceased = self._state.metrics.deceased_patients
+        before_active_critical = self._state.metrics.active_critical_patients
+        before_active_high = self._state.metrics.active_high_patients
+        before_active_med = self._state.metrics.active_medium_patients
+        before_active_low = self._state.metrics.active_low_patients
+        before_left = self._state.metrics.left_patients
+        before_denied_admission = self._state.metrics.overflow_patients
         before_discharged_critical = self._state.metrics.discharged_critical
         before_discharged_high = self._state.metrics.discharged_high
         before_discharged_med = self._state.metrics.discharged_med
         before_discharged_low = self._state.metrics.discharged_low
-        before_left = self._state.metrics.left_patients
-        before_denied_admission = self._state.metrics.overflow_patients
 
         quanta_to_advance = min(
             self._state.quanta_per_step,
@@ -563,6 +567,10 @@ class HospitalEnvironment(Environment):
         high_discharges_this_step = self._state.metrics.discharged_high - before_discharged_high
         med_discharges_this_step = self._state.metrics.discharged_med - before_discharged_med
         low_discharges_this_step = self._state.metrics.discharged_low - before_discharged_low
+        critical_active_this_step = self._state.metrics.active_critical_patients - before_active_critical + critical_discharges_this_step
+        high_active_this_step = self._state.metrics.active_high_patients - before_active_high + high_discharges_this_step
+        med_active_this_step = self._state.metrics.active_medium_patients - before_active_med + med_discharges_this_step
+        low_active_this_step = self._state.metrics.active_low_patients - before_active_low + low_discharges_this_step
         left_this_step = self._state.metrics.left_patients - before_left
         denied_admission_this_step = self._state.metrics.overflow_patients - before_denied_admission
 
@@ -576,10 +584,10 @@ class HospitalEnvironment(Environment):
 
         # TODO: Instead of rewarding discharges, reward the start of treatment
         reward = (
-            critical_discharges_this_step * 15
-            + high_discharges_this_step * 9
-            + med_discharges_this_step * 3
-            + low_discharges_this_step * 1
+            critical_active_this_step * 15
+            + high_active_this_step * 9
+            + med_active_this_step * 3
+            + low_active_this_step * 1
             - deaths_this_step * 25
             - self._severity_wait_penalty() * total_patients
             - denied_admission_this_step * 2
