@@ -201,7 +201,7 @@ def build_free_resource_summary(available_doctors: List[DoctorResource], availab
         "operating_rooms": {"total": len(available_rooms)},
     }
 
-def choose_priority_order(client: Optional[OpenAI], state, free_resource_summary) -> List[str]:
+def choose_priority_order(client: Optional[OpenAI], state, free_resource_summary, last_step_context: Optional[dict] = None) -> List[str]:
     # a prelinimary order of patients based on severity, condition score, and wait time
     sorted_patients = sorted(
         state.waiting_patients,
@@ -220,8 +220,11 @@ def choose_priority_order(client: Optional[OpenAI], state, free_resource_summary
     if not candidates:
         return heuristic_order
 
+    last_step_payload = last_step_context or {}
+
     user_prompt = (
         f"Task: Allocate hospital patients at quantum {state.current_quantum}.\n"
+        f"Last step: {json.dumps(last_step_payload or {})}\n"
         f"Free resources: {json.dumps(free_resource_summary or {})}\n"
         f"Waiting patients: {', '.join(summarize_patient(p) for p in candidates)}\n"
         "Return a JSON array of patient ids in priority order only."
@@ -273,7 +276,7 @@ def take_n(pool, predicate, count: int):
     return taken
 
 
-def build_action(state, client: Optional[OpenAI]) -> tuple[HospitalAction, str]:
+def build_action(state, client: Optional[OpenAI], last_step_context: Optional[dict] = None) -> tuple[HospitalAction, str, dict]:
     available_doctors = free_resources_by_time(state.doctors, state.current_quantum)
     available_nurses = free_resources_by_time(state.nurses, state.current_quantum)
     available_scanners = free_resources_by_time(state.scanners, state.current_quantum)
@@ -282,7 +285,7 @@ def build_action(state, client: Optional[OpenAI]) -> tuple[HospitalAction, str]:
 
     free_resource_summary = build_free_resource_summary(available_doctors, available_nurses, available_scanners, available_beds, available_rooms)
 
-    priority_ids = choose_priority_order(client, state, free_resource_summary)
+    priority_ids = choose_priority_order(client, state, free_resource_summary, last_step_context)
     waiting_by_id = {patient.patient_id: patient for patient in state.waiting_patients}
 
     assignments: List[ResourceAssignment] = []
@@ -325,9 +328,9 @@ def build_action(state, client: Optional[OpenAI]) -> tuple[HospitalAction, str]:
         action_parts.append(format_assignment(assignment))
 
     if not assignments:
-        return HospitalAction(assignments=[]), "nope"
+        return HospitalAction(assignments=[]), "nope", free_resource_summary
 
-    return HospitalAction(assignments=assignments), "||".join(action_parts)
+    return HospitalAction(assignments=assignments), "||".join(action_parts), free_resource_summary
 
 
 async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -> None:
@@ -335,6 +338,7 @@ async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -
     steps_taken = 0
     score = 0.0
     success = False
+    last_step_context: Optional[dict] = None
 
     log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
 
@@ -346,7 +350,7 @@ async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -
                 break
 
             state = await env.state()
-            action, action_label = build_action(state, client)
+            action, action_label, step_free_resources = build_action(state, client, last_step_context)
 
             try:
                 result = await env.step(action)
@@ -354,6 +358,11 @@ async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -
                 done = bool(result.done)
                 rewards.append(reward)
                 steps_taken = step
+                last_step_context = {
+                    "free_resources": step_free_resources,
+                    "action": action_label,
+                    "reward": reward,
+                }
                 log_step(step=step, action=action_label, reward=reward, done=done, error=None)
             except Exception as exc:
                 log_step(step=step, action=action_label, reward=0.0, done=True, error=str(exc))
