@@ -201,7 +201,7 @@ def build_free_resource_summary(available_doctors: List[DoctorResource], availab
         "operating_rooms": {"total": len(available_rooms)},
     }
 
-def choose_priority_order(client: Optional[OpenAI], state, free_resource_summary, last_step_context: Optional[dict] = None) -> List[str]:
+def choose_priority_order(client: Optional[OpenAI], state, free_resource_summary, last_step_context: Optional[dict] = None) -> tuple[List[str], List[str]]:
     # a prelinimary order of patients based on severity, condition score, and wait time
     sorted_patients = sorted(
         state.waiting_patients,
@@ -209,16 +209,13 @@ def choose_priority_order(client: Optional[OpenAI], state, free_resource_summary
     )
     heuristic_order = [patient.patient_id for patient in sorted_patients]
 
-    # if no client or not enough patients, return the heuristic order without calling the model
-    if client is None or len(heuristic_order) < 2:
-        return heuristic_order
+    # if no client, fall back to heuristic order without calling the model
+    if client is None:
+        return heuristic_order, []
 
     # don't take too many patients for 1 prompt. Current limit is 10
     candidates_ids = heuristic_order[: min(10, len(heuristic_order))]
     candidates = [p for p in sorted_patients if p.patient_id in candidates_ids]
-    
-    if not candidates:
-        return heuristic_order
 
     user_prompt = (
         f"Task: Allocate hospital patients at quantum {state.current_quantum}.\n"
@@ -249,10 +246,10 @@ def choose_priority_order(client: Optional[OpenAI], state, free_resource_summary
                 parsed = [str(item) for item in data if str(item) in heuristic_order]
                 if parsed:
                     remaining = [pid for pid in heuristic_order if pid not in parsed]
-                    return parsed + remaining
+                    return parsed + remaining, candidates_ids
     except Exception as exc:
         _ = exc
-    return heuristic_order
+    return heuristic_order, candidates_ids
 
 
 # --------------------------------------------------------------------------------
@@ -274,7 +271,7 @@ def take_n(pool, predicate, count: int):
     return taken
 
 
-def build_action(state, client: Optional[OpenAI], last_step_context: Optional[dict] = None) -> tuple[HospitalAction, str, dict]:
+def build_action(state, client: Optional[OpenAI], last_step_context: Optional[dict] = None) -> tuple[HospitalAction, str, dict, List[str]]:
     available_doctors = free_resources_by_time(state.doctors, state.current_quantum)
     available_nurses = free_resources_by_time(state.nurses, state.current_quantum)
     available_scanners = free_resources_by_time(state.scanners, state.current_quantum)
@@ -283,7 +280,7 @@ def build_action(state, client: Optional[OpenAI], last_step_context: Optional[di
 
     free_resource_summary = build_free_resource_summary(available_doctors, available_nurses, available_scanners, available_beds, available_rooms)
 
-    priority_ids = choose_priority_order(client, state, free_resource_summary, last_step_context)
+    priority_ids, llm_candidate_ids = choose_priority_order(client, state, free_resource_summary, last_step_context)
     waiting_by_id = {patient.patient_id: patient for patient in state.waiting_patients}
 
     assignments: List[ResourceAssignment] = []
@@ -326,9 +323,9 @@ def build_action(state, client: Optional[OpenAI], last_step_context: Optional[di
         action_parts.append(format_assignment(assignment))
 
     if not assignments:
-        return HospitalAction(assignments=[]), "nope", free_resource_summary
+        return HospitalAction(assignments=[]), "nope", free_resource_summary, llm_candidate_ids
 
-    return HospitalAction(assignments=assignments), "||".join(action_parts), free_resource_summary
+    return HospitalAction(assignments=assignments), "||".join(action_parts), free_resource_summary, llm_candidate_ids
 
 
 async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -> None:
@@ -348,7 +345,7 @@ async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -
                 break
 
             state = await env.state()
-            action, action_label, step_free_resources = build_action(state, client, last_step_context)
+            action, action_label, step_free_resources, llm_patients_this_step = build_action(state, client, last_step_context)
 
             try:
                 result = await env.step(action)
@@ -357,9 +354,10 @@ async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -
                 rewards.append(reward)
                 steps_taken = step
                 last_step_context = {
-                    "free_resources": step_free_resources,
-                    "action": action_label,
-                    "reward": reward,
+                    "free_resources_last_step": step_free_resources,
+                    "action_last_step": action_label,
+                    "reward_for_last_step": reward,
+                    "llm_patients_last_step": llm_patients_this_step,
                 }
                 log_step(step=step, action=action_label, reward=reward, done=done, error=None)
             except Exception as exc:
