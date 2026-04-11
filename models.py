@@ -272,6 +272,10 @@ class HospitalMetrics(State):
     deceased_patients: int = 0
     overflow_patients: int = 0
     active_patients: int = 0
+    active_critical_patients: int = 0
+    active_high_patients: int = 0
+    active_medium_patients: int = 0
+    active_low_patients: int = 0
 
 class HospitalState(State):
     episode_id: str
