@@ -18,7 +18,7 @@ TASK_NAME = os.getenv("TASK") or os.getenv("MY_ENV_V4_TASK", "all")
 
 MAX_STEPS = 96
 TEMPERATURE = 0.0
-MAX_TOKENS = 192
+MAX_TOKENS = 1000
 
 SMALL_NUMBER = 0.01
 
