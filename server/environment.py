@@ -396,6 +396,15 @@ class HospitalEnvironment(Environment):
             self._state.active_patients.append(patient)
             self._state.metrics.active_patients += 1
 
+            if patient.severity == Severity.CRITICAL:
+                self._state.metrics.active_critical_patients += 1
+            elif patient.severity == Severity.HIGH:
+                self._state.metrics.active_high_patients += 1
+            elif patient.severity == Severity.MEDIUM:
+                self._state.metrics.active_medium_patients += 1
+            elif patient.severity == Severity.LOW:
+                self._state.metrics.active_low_patients += 1
+
             patient.treatment_started_quantum = self._state.current_quantum
             doctor.busy_until_quantum = self._state.current_quantum + patient.treatment_quanta
             for nurse in nurses:
@@ -464,12 +473,16 @@ class HospitalEnvironment(Environment):
                 self._state.discharged_patients.append(patient)
                 if patient.severity == Severity.CRITICAL:
                     self._state.metrics.discharged_critical += 1
+                    self._state.metrics.active_critical_patients -= 1
                 elif patient.severity == Severity.HIGH:
                     self._state.metrics.discharged_high += 1
+                    self._state.metrics.active_high_patients -= 1
                 elif patient.severity == Severity.MEDIUM:
                     self._state.metrics.discharged_med += 1
+                    self._state.metrics.active_medium_patients -= 1
                 elif patient.severity == Severity.LOW:
                     self._state.metrics.discharged_low += 1
+                    self._state.metrics.active_low_patients -= 1
             # TODO: seems redundant, as patients don't die during treatment
             elif self._patient_died(patient):
                 self._state.deceased_patients.append(patient)
