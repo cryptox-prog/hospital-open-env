@@ -390,9 +390,11 @@ class HospitalEnvironment(Environment):
                 continue
             if patient.operation_duration_quanta > 0 and operating_room is None:
                 continue
-
+            
+            # TODO: maybe put this in _advance_waiting
             self._state.waiting_patients.remove(patient)
             self._state.active_patients.append(patient)
+            self._state.metrics.active_patients += 1
 
             patient.treatment_started_quantum = self._state.current_quantum
             doctor.busy_until_quantum = self._state.current_quantum + patient.treatment_quanta
@@ -448,18 +450,18 @@ class HospitalEnvironment(Environment):
                 surviving_waiting.append(patient)
         self._state.waiting_patients = surviving_waiting
 
-    def _advance_active_patients(self) -> int:
+    def _advance_active_patients(self) -> None:
         remaining_active: List[Patient] = []
-        discharges = 0
 
         for patient in self._state.active_patients:
             quanta_elapsed = self._state.current_quantum - patient.treatment_started_quantum
+            # TODO: Look into condition score logic, maybe remove this
             patient.condition_score = max(0.0, patient.condition_score - self._deterioration_per_hour_to_deterioration_per_quanta(patient.severity.recovery_rate))
 
             if quanta_elapsed >= patient.treatment_quanta:
                 patient.is_stable = True
+                self._state.metrics.active_patients -= 1
                 self._state.discharged_patients.append(patient)
-                discharges += 1
                 if patient.severity == Severity.CRITICAL:
                     self._state.metrics.discharged_critical += 1
                 elif patient.severity == Severity.HIGH:
@@ -468,6 +470,7 @@ class HospitalEnvironment(Environment):
                     self._state.metrics.discharged_med += 1
                 elif patient.severity == Severity.LOW:
                     self._state.metrics.discharged_low += 1
+            # TODO: seems redundant, as patients don't die during treatment
             elif self._patient_died(patient):
                 self._state.deceased_patients.append(patient)
                 self._state.metrics.deceased_patients += 1
@@ -475,7 +478,6 @@ class HospitalEnvironment(Environment):
                 remaining_active.append(patient)
 
         self._state.active_patients = remaining_active
-        return discharges
 
     def _release_resources(self, current_quantum: int) -> None:
         for bed in self._state.beds:
