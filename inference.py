@@ -8,13 +8,13 @@ from models import HospitalAction, Patient, ResourceAssignment, Severity, Doctor
 
 API_KEY = os.environ["API_KEY"]
 API_BASE_URL = os.environ["API_BASE_URL"]
-MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME", "hospital-open-env:local")
 BENCHMARK = os.getenv("BENCHMARK", "hospital-open-env")
 
 API_URL = os.getenv("API_URL", "https://pranamud123-hospital-open-env.hf.space")
-TASK_NAME = os.getenv("TASK") or os.getenv("MY_ENV_V4_TASK", "all")
+TASK_NAME = os.getenv("TASK", "all")
 
 MAX_STEPS = 96
 TEMPERATURE = 0.2
@@ -33,6 +33,8 @@ TASK_SUCCESS_THRESHOLDS = {
     "medium": 0.10,
     "hard": 0.05,
 }
+
+MAX_TOTAL_REWARD: float = 96 # The sigmoid function squishing the reward means only a maximum reward of 1 per step can be reached
 
 BASE_RESOURCE_CONFIG = {
     "doctors": {
@@ -163,7 +165,7 @@ def free_resources_by_time(resources, current_quantum: int):
     return free_resources
 
 def format_assignment(assignment: ResourceAssignment) -> str:
-    # Conver resource assignement struct to string for step logging
+    # Convert resource assignment struct to string for step logging
     nurse_part = "+".join(assignment.nurse_ids) if assignment.nurse_ids else "none"
     scanner_part = assignment.scanner_id or "none"
     room_part = assignment.operating_room_id or "none"
@@ -202,7 +204,7 @@ def build_free_resource_summary(available_doctors: List[DoctorResource], availab
     }
 
 def choose_priority_order(client: Optional[OpenAI], state, free_resource_summary, last_step_context: Optional[dict] = None) -> tuple[List[str], List[str]]:
-    # a prelinimary order of patients based on severity, condition score, and wait time
+    # a preliminary order of patients based on severity, condition score, and wait time
     sorted_patients = sorted(
         state.waiting_patients,
         key=lambda p: (SEVERITY_ORDER[p.severity], -p.condition_score, -p.waited_quanta, p.arrival_quantum),
@@ -253,7 +255,7 @@ def choose_priority_order(client: Optional[OpenAI], state, free_resource_summary
 
 
 # --------------------------------------------------------------------------------
-# Acquire 1 or n resources from res pool, decide if they are the correct using lambda fucntion (predicate)
+# Acquire 1 or n resources from res pool, decide if they are the correct using lambda function (predicate)
 # --------------------------------------------------------------------------------
 def take_first(pool, predicate):
     for index, resource in enumerate(pool):
@@ -368,7 +370,7 @@ async def run_task(task_name: str, client: Optional[OpenAI], env: HospitalEnv) -
             if done:
                 break
 
-        score = sum(rewards) / 1000
+        score = sum(rewards) / MAX_TOTAL_REWARD
         score = min(max(score, SMALL_NUMBER), 1.0 - SMALL_NUMBER)
         success_threshold = TASK_SUCCESS_THRESHOLDS.get(task_name, 1.0)
         success = score >= success_threshold

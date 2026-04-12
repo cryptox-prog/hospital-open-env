@@ -45,6 +45,7 @@ In situations like natural disasters or pandemics, the resources of a hospital a
     - The total amount of waiting the current patients have done
     - The patients which leave this step due to long wait
     - The patients which get denied admission because the hospital has reached its capacity
+    - The reward function utilized the sigmoid function to squish the scores between 0 and 1
 
 ## Action Space
 

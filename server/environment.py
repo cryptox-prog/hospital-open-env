@@ -3,6 +3,7 @@ from openenv.core.env_server import Environment
 import random
 import uuid
 from typing import List, Dict, Optional
+import math
 
 from models import (HospitalState, HospitalObservation, DoctorResource,
                      DoctorType, NurseResource, NurseType, OperationType, ScannerResource, ScannerType,
@@ -198,26 +199,12 @@ class HospitalEnvironment(Environment):
             
             operation_type = None
             operation_duration_quanta = 0
-            required_blood_units = 0
-            required_oxygen = False
 
             if self._rng.random() < severity.operation_probability:
                 operation_choices = list(OperationType)
                 weights = [op.likelihood for op in operation_choices]
                 operation_type = self._rng.choices(operation_choices, weights=weights, k=1)[0]
                 operation_duration_quanta = operation_type.base_duration_quanta
-
-
-            if self._rng.random() < severity.oxygen_probability:
-                required_oxygen = True
-
-            if self._rng.random() < severity.blood_probability:
-                if severity == Severity.MEDIUM:
-                    required_blood_units = 1
-                elif severity == Severity.HIGH:
-                    required_blood_units = self._rng.randint(1, 2)
-                else:
-                    required_blood_units = self._rng.randint(2, 4)
 
             required_nurse_type = severity.required_nurse
             required_nurses = severity.required_nurses_count
@@ -238,9 +225,7 @@ class HospitalEnvironment(Environment):
                 required_bed_type = severity.required_bed,
                 required_scanner = required_scanner,
                 operation_type = operation_type,
-                operation_duration_quanta = operation_duration_quanta,
-                required_blood_units = required_blood_units,
-                required_oxygen = required_oxygen,
+                operation_duration_quanta = operation_duration_quanta
             )
             schedule[arrival_quantum].append(patient)
 
@@ -449,7 +434,6 @@ class HospitalEnvironment(Environment):
             patient.required_bed_type = patient.severity.required_bed
             self._state.metrics.high_to_critical_patients += 1
 
-
     def _advance_waiting_patients(self) -> None:
         surviving_waiting: List[Patient] = []
         for patient in self._state.waiting_patients:
@@ -529,12 +513,15 @@ class HospitalEnvironment(Environment):
             parts.append("No major changes this quantum")
         return ", ".join(parts)
 
-
     def _flatten_arrivals(self) -> List[Patient]:
         arrivals: List[Patient] = []
         for quantum in range(0, self._state.horizon_quanta, self._state.quanta_per_step):
             arrivals.extend(self._scheduled_arrivals.get(quantum, []))
         return arrivals
+    
+    @staticmethod
+    def _sigmoid_activation(x: float) -> float:
+        return 1.0 / (1.0 + math.exp(x))
 
     # noinspection PyUnusedLocal
     def step(self, action: HospitalAction, *args, **kwargs) -> HospitalObservation:
@@ -603,7 +590,7 @@ class HospitalEnvironment(Environment):
             - left_this_step * 4
         )
 
-        reward = reward * 100 / (total_patients if total_patients > 0 else reward)
+        reward = self._sigmoid_activation(reward)
 
         return self._observation(done=done, reward=reward, message=self._status_message(critical_discharges_this_step + high_discharges_this_step + med_discharges_this_step + low_discharges_this_step, deaths_this_step, done))
 
