@@ -278,7 +278,6 @@ class HospitalMetrics(State):
     active_low_patients: int = 0
 
 class HospitalState(State):
-    episode_id: str
     current_quantum: int = 0
     horizon_quanta: int = quanta_from_hours(24)
     time_quantum_minutes: int = TIME_QUANTUM_MINUTES
