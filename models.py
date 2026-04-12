@@ -72,7 +72,7 @@ class OperationType(StrEnum):
             OperationType.C_SECTION: quanta_from_minutes(30),
             OperationType.DEBRIDEMENT: quanta_from_hours(1),
             OperationType.LAPAROTOMY: quanta_from_hours(2),
-            OperationType.CABG: quanta_from_hours(2.5),
+            OperationType.CABG: quanta_from_hours(2) + quanta_from_minutes(30),
         }[self]
         
     @property
@@ -193,7 +193,7 @@ class Severity(StrEnum):
             Severity.LOW: quanta_from_minutes(15),
             Severity.MEDIUM: quanta_from_minutes(30),
             Severity.HIGH: quanta_from_hours(1),
-            Severity.CRITICAL: quanta_from_hours(1.5),
+            Severity.CRITICAL: quanta_from_hours(1) + quanta_from_minutes(30),
         }[self]
 
 # --------------------------------------------------------------------------------
