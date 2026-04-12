@@ -35,8 +35,8 @@ In situations like natural disasters or pandemics, the resources of a hospital a
 - The `low` and `medium` patients leave once they wait too long
 - The `high` patient becomes critical once they wait too long
 - The `critical` patient dies once it waits for too long
-- The hospital has max capacity beyond which no patient will be allowed inside until the patients either die, leave or discharge
-- The agent will be rewarded for starting the treatments of patients of different severity
+- The hospital has max capacity beyond which no patient will be allowed inside until the patients either die, leave or get discharged
+- The agent will be rewarded for starting the treatments of patients. The rewards are different for different severity
     - Only the advancement from waiting to active is rewarded because that is the only thing in the agents control
     - This is also the reason the patients are not dying after being assigned treatment as the patient had little to do with patients dying after they were alloted necessary resources in current environment setup
 - The agent will be penalized for:
@@ -45,7 +45,7 @@ In situations like natural disasters or pandemics, the resources of a hospital a
     - The total amount of waiting the current patients have done
     - The patients which leave this step due to long wait
     - The patients which get denied admission because the hospital has reached its capacity
-    - The reward function utilized the sigmoid function to squish the scores between 0 and 1
+    - The reward function utilized the tanh function to squish the scores between 0 and 1
 
 ## Action Space
 
