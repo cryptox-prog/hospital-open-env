@@ -58,7 +58,7 @@ class HospitalEnvironment(Environment):
         self._next_patient_index = 0
 
     # noinspection PyUnusedLocal
-    def reset(self, config: Optional[dict] = None, seed = None, episode_id = None, **kwargs) -> HospitalObservation:
+    def reset(self, seed=None, episode_id=None, config: Optional[dict] = None, **kwargs) -> HospitalObservation:
         # config = {"doctors": {"er": 3, "surgeon": 2}, "nurses": {...}, ..., "patient: {"count": 20, "severity_weights": {"low": 2, "critical": 4}}"}
         if seed is not None:
             self._rng.seed(seed)
@@ -537,7 +537,7 @@ class HospitalEnvironment(Environment):
         return arrivals
 
     # noinspection PyUnusedLocal
-    def step(self, action: HospitalAction, **kwargs) -> HospitalObservation:
+    def step(self, action: HospitalAction, *args, **kwargs) -> HospitalObservation:
         current_quantum = self._state.current_quantum
         before_deceased = self._state.metrics.deceased_patients
         before_active_critical = self._state.metrics.active_critical_patients
