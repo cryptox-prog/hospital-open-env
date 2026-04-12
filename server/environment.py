@@ -521,7 +521,7 @@ class HospitalEnvironment(Environment):
     
     @staticmethod
     def _tanh_activation(x: float) -> float:
-        scale: float = 30.0
+        scale: float = 25.0
         return 0.5 * (math.tanh(x / scale) + 1.0)
 
     # noinspection PyUnusedLocal
