@@ -591,7 +591,7 @@ class HospitalEnvironment(Environment):
             - left_this_step * 4
         )
 
-        reward = self._tanh_activation(reward * 1000)
+        reward = self._tanh_activation(reward)
 
         return self._observation(done=done, reward=reward, message=self._status_message(critical_active_this_step + high_active_this_step + med_active_this_step + low_active_this_step, deaths_this_step, done))
 
