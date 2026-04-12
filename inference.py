@@ -71,7 +71,7 @@ TASK_CONFIGS = {
         "patients": {
             "count": 312,
             "arrival_spread": "uniform",
-            "severity_weights": {"low": 65, "medium": 25, "high": 8, "critical": 2}
+            "severity_weights": {"low": 35, "medium": 35, "high": 20, "critical": 10}
         },
     },
 
@@ -79,7 +79,7 @@ TASK_CONFIGS = {
         "patients": {
             "count": 312,
             "arrival_spread": "front_loaded",
-            "severity_weights": {"low": 35, "medium": 35, "high": 20, "critical": 10}
+            "severity_weights": {"low": 65, "medium": 25, "high": 8, "critical": 2}
         },
     },
 
