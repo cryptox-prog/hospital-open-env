@@ -470,7 +470,7 @@ class HospitalEnvironment(Environment):
         remaining_active: List[Patient] = []
 
         for patient in self._state.active_patients:
-            quanta_elapsed = self._state.current_quantum - (patient.treatment_started_quantum or 0)
+            quanta_elapsed = self._state.current_quantum - (patient.treatment_started_quantum or 0) # bad practice but handles type checker and prevents crash
             # TODO: Look into condition score logic, maybe remove this
             patient.condition_score = max(0.0, patient.condition_score - self._deterioration_per_hour_to_deterioration_per_quanta(patient.severity.recovery_rate))
 
