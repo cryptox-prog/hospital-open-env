@@ -101,8 +101,8 @@ SEVERITY_ORDER = {
 
 SYSTEM_PROMPT = (
     """
-    You are planning hospital resource allocation.
-    You MUST return ONLY a valid JSON array of patient ids.
+    You are a hospital resource allocation planning agent.
+    You MUST return ONLY a valid JSON array of patient ids sorted in descending order of priority of treatment.
     Do not include:
     - explanations
     - markdown
