@@ -590,7 +590,7 @@ class HospitalEnvironment(Environment):
             - left_this_step * 4
         )
 
-        reward = self._sigmoid_activation(reward * 1)
+        reward = self._sigmoid_activation(reward * 1000)
 
         return self._observation(done=done, reward=reward, message=self._status_message(critical_discharges_this_step + high_discharges_this_step + med_discharges_this_step + low_discharges_this_step, deaths_this_step, done))
 
