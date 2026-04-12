@@ -47,11 +47,6 @@ class BedType(StrEnum):
     GENERAL = auto()
     ER = auto()
 
-class BloodType(StrEnum):
-    O_POS = auto()
-    O_NEG = auto()
-    A_POS = auto()
-    B_POS = auto()
 
 class NurseType(StrEnum):
     GENERAL = auto()
@@ -161,24 +156,6 @@ class Severity(StrEnum):
         }[self]
 
     @property
-    def oxygen_probability(self) -> float:
-        return {
-            Severity.LOW: 0.0,
-            Severity.MEDIUM: 0.10,
-            Severity.HIGH: 0.55,
-            Severity.CRITICAL: 0.90,
-        }[self]
-
-    @property
-    def blood_probability(self) -> float:
-        return {
-            Severity.LOW: 0.0,
-            Severity.MEDIUM: 0.05,
-            Severity.HIGH: 0.35,
-            Severity.CRITICAL: 0.80,
-        }[self]
-
-    @property
     def scanner_probability(self) -> float:
         return {
             Severity.LOW: 0.0,
@@ -213,8 +190,6 @@ class Patient(State):
     required_nurse_type: NurseType = NurseType.GENERAL
     required_nurses: int = 1
     required_bed_type: BedType = BedType.GENERAL
-    required_blood_units: int = 0
-    required_oxygen: bool = False
     required_scanner: Optional[ScannerType] = None
     operation_type: Optional[OperationType] = None
     operation_duration_quanta: int = 0
@@ -246,16 +221,6 @@ class ScannerResource(State):
 class BedResource(State):
     resource_id: str
     resource_type: BedType
-    busy_until_quantum: int = 0
-
-class BloodResource(State):
-    resource_id: str
-    resource_type: BloodType
-    units_available: int = 0
-
-
-class OxygenResource(State):
-    resource_id: str
     busy_until_quantum: int = 0
 
 class OperatingRoomResource(State):
@@ -298,8 +263,6 @@ class HospitalState(State):
     scanners: List[ScannerResource] = []
     beds: List[BedResource] = []
     operating_rooms: List[OperatingRoomResource] = []
-    blood_bank: List[BloodResource] = []
-    oxygen_supply: List[OxygenResource] = []
     metrics: HospitalMetrics = HospitalMetrics()
 
 

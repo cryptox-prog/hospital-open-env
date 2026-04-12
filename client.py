@@ -11,8 +11,6 @@ from models import (
 	ScannerResource,
 	BedResource,
 	OperatingRoomResource,
-	BloodResource,
-	OxygenResource,
 	HospitalMetrics,
 )
 
@@ -59,8 +57,6 @@ class HospitalEnv(EnvClient[HospitalAction, HospitalObservation, HospitalState])
 		scanners = [ScannerResource.model_validate(s) for s in payload.get("scanners", [])]
 		beds = [BedResource.model_validate(b) for b in payload.get("beds", [])]
 		operating_rooms = [OperatingRoomResource.model_validate(o) for o in payload.get("operating_rooms", [])]
-		blood_bank = [BloodResource.model_validate(b) for b in payload.get("blood_bank", [])]
-		oxygen_supply = [OxygenResource.model_validate(o) for o in payload.get("oxygen_supply", [])]
 		metrics = HospitalMetrics.model_validate(payload.get("metrics", {}))
 		
 		return HospitalState(
@@ -81,7 +77,5 @@ class HospitalEnv(EnvClient[HospitalAction, HospitalObservation, HospitalState])
 			scanners=scanners,
 			beds=beds,
 			operating_rooms=operating_rooms,
-			blood_bank=blood_bank,
-			oxygen_supply=oxygen_supply,
 			metrics=metrics,
 		)
