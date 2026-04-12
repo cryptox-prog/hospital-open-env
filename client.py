@@ -69,7 +69,7 @@ class HospitalEnv(EnvClient[HospitalAction, HospitalObservation, HospitalState])
 			horizon_quanta=payload.get("horizon_quanta", 0),
 			time_quantum_minutes=payload.get("time_quantum_minutes", 15),
 			time_quanta_per_hour=payload.get("time_quanta_per_hour", 4),
-			quanta_per_step=payload.get("quanta_per_step", 2),
+			quanta_per_step=payload.get("quanta_per_step", 1),
 			waiting_patients=waiting_patients,
 			active_patients=active_patients,
 			discharged_patients=discharged_patients,
