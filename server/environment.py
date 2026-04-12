@@ -520,8 +520,9 @@ class HospitalEnvironment(Environment):
         return arrivals
     
     @staticmethod
-    def _sigmoid_activation(x: float) -> float:
-        return 1.0 / (1.0 + math.exp(x))
+    def _tanh_activation(x: float) -> float:
+        scale: float = 30.0
+        return 0.5 * (math.tanh(x / scale) + 1.0)
 
     # noinspection PyUnusedLocal
     def step(self, action: HospitalAction, *args, **kwargs) -> HospitalObservation:
@@ -590,7 +591,7 @@ class HospitalEnvironment(Environment):
             - left_this_step * 4
         )
 
-        reward = self._sigmoid_activation(reward * 1000)
+        reward = self._tanh_activation(reward * 1000)
 
         return self._observation(done=done, reward=reward, message=self._status_message(critical_active_this_step + high_active_this_step + med_active_this_step + low_active_this_step, deaths_this_step, done))
 
