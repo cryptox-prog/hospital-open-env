@@ -268,6 +268,7 @@ class HospitalMetrics(State):
     discharged_high: int = 0
     discharged_med: int = 0
     discharged_low: int = 0
+    high_to_critical_patients: int = 0
     left_patients: int = 0
     deceased_patients: int = 0
     overflow_patients: int = 0

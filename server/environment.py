@@ -447,6 +447,7 @@ class HospitalEnvironment(Environment):
             patient.required_nurse_type = patient.severity.required_nurse
             patient.required_nurses = patient.severity.required_nurses_count
             patient.required_bed_type = patient.severity.required_bed
+            self._state.metrics.high_to_critical_patients += 1
 
 
     def _advance_waiting_patients(self) -> None:
@@ -545,6 +546,7 @@ class HospitalEnvironment(Environment):
         before_active_low = self._state.metrics.active_low_patients
         before_left = self._state.metrics.left_patients
         before_denied_admission = self._state.metrics.overflow_patients
+        before_high_to_critical = self._state.metrics.high_to_critical_patients
         before_discharged_critical = self._state.metrics.discharged_critical
         before_discharged_high = self._state.metrics.discharged_high
         before_discharged_med = self._state.metrics.discharged_med
@@ -579,6 +581,7 @@ class HospitalEnvironment(Environment):
         low_active_this_step = self._state.metrics.active_low_patients - before_active_low + low_discharges_this_step
         left_this_step = self._state.metrics.left_patients - before_left
         denied_admission_this_step = self._state.metrics.overflow_patients - before_denied_admission
+        high_to_critical_this_step = self._state.metrics.high_to_critical_patients - before_high_to_critical
 
         total_patients = len(self._flatten_arrivals())
         all_patients_arrived = self._next_patient_index >= total_patients
@@ -588,13 +591,13 @@ class HospitalEnvironment(Environment):
             all_patients_arrived
         )
 
-        # TODO: Instead of rewarding discharges, reward the start of treatment
         reward = (
-            critical_active_this_step * 15
+            critical_active_this_step * 20
             + high_active_this_step * 9
             + med_active_this_step * 3
             + low_active_this_step * 1
             - deaths_this_step * 25
+            - high_to_critical_this_step * 3
             - self._severity_wait_penalty() * total_patients
             - denied_admission_this_step * 2
             - left_this_step * 4
