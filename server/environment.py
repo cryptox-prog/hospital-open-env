@@ -470,12 +470,11 @@ class HospitalEnvironment(Environment):
         remaining_active: List[Patient] = []
 
         for patient in self._state.active_patients:
-            quanta_elapsed = self._state.current_quantum - patient.treatment_started_quantum
+            quanta_elapsed = self._state.current_quantum - (patient.treatment_started_quantum or 0)
             # TODO: Look into condition score logic, maybe remove this
             patient.condition_score = max(0.0, patient.condition_score - self._deterioration_per_hour_to_deterioration_per_quanta(patient.severity.recovery_rate))
 
             if quanta_elapsed >= patient.treatment_quanta:
-                patient.is_stable = True
                 self._state.metrics.active_patients -= 1
                 self._state.discharged_patients.append(patient)
                 if patient.severity == Severity.CRITICAL:
