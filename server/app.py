@@ -1,7 +1,7 @@
 import html
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -12,6 +12,7 @@ from server.environment import HospitalEnvironment
 
 app = create_fastapi_app(HospitalEnvironment, HospitalAction, HospitalObservation)
 APP_STARTED_AT_UTC = datetime.now(timezone.utc)
+IST = timezone(timedelta(hours=5, minutes=30), name="IST")
 
 
 def _space_id() -> str | None:
@@ -30,7 +31,9 @@ def _space_id() -> str | None:
 def _fmt_iso_utc(value: str) -> str | None:
 	try:
 		parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-		return parsed.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+		utc_text = parsed.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+		ist_text = parsed.astimezone(IST).strftime("%Y-%m-%d %H:%M IST")
+		return f"{utc_text} ({ist_text})"
 	except ValueError:
 		return None
 
@@ -51,7 +54,9 @@ def _get_last_space_update_label() -> str:
 		except (URLError, TimeoutError, json.JSONDecodeError, OSError):
 			pass
 
-	return "Server started: " + APP_STARTED_AT_UTC.strftime("%Y-%m-%d %H:%M UTC")
+	started_utc = APP_STARTED_AT_UTC.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+	started_ist = APP_STARTED_AT_UTC.astimezone(IST).strftime("%Y-%m-%d %H:%M IST")
+	return f"Server started: {started_utc} ({started_ist})"
 
 
 @app.get("/", response_class=HTMLResponse)
