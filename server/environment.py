@@ -54,6 +54,7 @@ class HospitalEnvironment(Environment):
             operating_rooms=[],
         )
         self._scheduled_arrivals: Dict[int, List[Patient]] = {}
+        self._arrivals_moved_quanta: set[int] = set()
         self._next_patient_index = 0
 
     # noinspection PyUnusedLocal
@@ -75,6 +76,7 @@ class HospitalEnvironment(Environment):
         )
 
         self._scheduled_arrivals = self._build_patients_schedule(effective_config["patients"])
+        self._arrivals_moved_quanta = set()
         self._next_patient_index = 0
         self._move_to_waiting(quantum = 0)
         self._state.metrics = HospitalMetrics()
@@ -245,6 +247,9 @@ class HospitalEnvironment(Environment):
         return schedule
 
     def _move_to_waiting(self, quantum: int) -> None:
+        if quantum in self._arrivals_moved_quanta:
+            return
+
         new_patients = self._scheduled_arrivals.get(quantum, [])
         arrived = []
         overflowed = []
@@ -260,6 +265,8 @@ class HospitalEnvironment(Environment):
                     overflowed.append(patient)
                     self._state.metrics.overflow_patients += 1
             self._next_patient_index += len(new_patients)
+
+        self._arrivals_moved_quanta.add(quantum)
 
     def _resource_free(self, busy_until_quantum: int) -> bool:
         return busy_until_quantum <= self._state.current_quantum
